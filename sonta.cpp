@@ -459,21 +459,16 @@ void Graph::VisualizeGraph() {
 	fout << "	directed 0" << endl;
 	int i = 0;
 	int j = 0;
-	for(i = 1;i<= num_nodes; i++)
-	{
+	for(i = 1;i<= num_nodes; i++) {
 		fout << "	node" << endl;
 		fout << "	[" << endl;
 		fout << "		id " << i << endl;
 		fout << "		label " << "\"" << i << "\"" << endl;
 		fout << "	]" << endl;
 	}
-	
-	for(i = 1; i <= num_nodes; i++)
-	{
-		for(j = 1; j <= neighbor[i][0]; j++)
-		{
-			if(i < neighbor[i][j])
-			{
+	for(i = 1; i <= num_nodes; i++) {
+		for(j = 1; j <= neighbor[i][0]; j++) {
+			if(i < neighbor[i][j]) {
 				fout << "	edge" << endl;
 				fout << "	[" << endl;
 				fout << "		source " << i << endl;
@@ -482,7 +477,6 @@ void Graph::VisualizeGraph() {
 			}
 		}
 	}
-	
 	fout << "]" << endl;
 	fout.close();
 }

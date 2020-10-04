@@ -4,7 +4,7 @@
 1. directed graph file (.graph): each line contains node's all neighbors. (For example, the first line in the file is her neighbors set of node-1). The node id is continuous and begin from number 1. !!! Specifically, all graph is regarded as a directed graph (undirected can be regarded as a directed graph)
 2. cluster file (.gt): each line contains all nodes in a cluster. (For example, the first line in the file is the nodes belonging to first cluster)
 3. node feature file (.nf): each line contains a set of features a specific node has. (For example, the first line in the file is the a set of feature ids node-1 has.)
-4. .graph topology file is necessary, which .gt and .nf files are not necessary.
+4. .graph topology file is necessary, while .gt and .nf files are not necessary.
 
 # Tips:
 1. All the one-dimensional array's first element's value is its number of all elements. (for example, if we store 10 values in an one-dimensional array A[11], where A[0] = 10). Although this operation will be at a cost of centain memory space, it will facilitate index and calculation.

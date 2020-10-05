@@ -5,6 +5,7 @@
 2. Cluster file (.gt): each line contains all nodes within a specific cluster. (e.g., the first line in the file is a set of nodes belonging to the first cluster.)
 3. node feature file (.nf): each line contains a set of feature ids a specific node has. (e.g., the first line in the file is a set of feature ids node-1 has.)
 4. Graph topology file (.graph) is essential, its absence will cause the interruption of program; while (.gt) and (.nf) files are not essential.
+5. All input files are binary files, in which any two numbers in a each line are separated by "Space" instead of "Tab".
 
 # Tips:
 1. All one-dimensional arrays' first element's value is the number of all elements with them. (e.g., if we store 10 values in an one-dimensional array A[11], then A[0] is assigned the value 10). Although this operation comes at the cost of a certain amount of space consumption, it will facilitate the indexing of vector elements.

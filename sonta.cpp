@@ -459,13 +459,16 @@ void Graph::VisualizeGraph() {
 	fout << "	directed 0" << endl;
 	int i = 0;
 	int j = 0;
-	for(i = 1;i<= num_nodes; i++) {
+	for(i = 1; i<= num_nodes; i++) {
 		fout << "	node" << endl;
 		fout << "	[" << endl;
 		fout << "		id " << i << endl;
 		fout << "		label " << "\"" << i << "\"" << endl;
+		//non-overlapping clusters
+		fout << "		cluster " << "\"" << cluster[i][1] << "\"" << endl;
 		fout << "	]" << endl;
 	}
+	
 	for(i = 1; i <= num_nodes; i++) {
 		for(j = 1; j <= neighbor[i][0]; j++) {
 			if(i < neighbor[i][j]) {
@@ -488,23 +491,194 @@ void Graph::VisualizeGraph() {
 2. The cluster structure of calculating Omega Index is the first Type (each line denotes a set of clusters a specific node belongs)
 3. The number of nodes is needed when calculate NMI, Omega Index, and ARI.
 */
-class PerformanceTest {
+class ClusterTest {
+public: 
+	// no ground-truth information 
+	//1. Modularity of non-overlapping strucuture
+	//Our1 and Our2 are same cluster structure with different format (see definitions for details)
+	//each array in Our1 denotes a specific cluster, while each array in Our2 denotes a specific node.
+	double CalNonOverlapModul(int** Our1, int** Our2, int** neighbor, int num_edges);
+	//2. Tightness (overlapping/non-overlapping)(Bu et al. CAMAS, Information Fusion, 2017, page-3)
+	//Our1 and Our2 are same cluster structure with different format (see definitions for details)
+	//each array in Our1 denotes a specific cluster, while each array in Our2 denotes a specific node.
+	double CalTgt(int** Our1, int** Our2, int** neighbor);
+	//3. calculating adjusted tightness of cluster structure (Bu et al. CAMAS, Information Fusion, 2017, page-3)
+	//penalizing very small and very large clusters and produces well-balanced solutions
+	double CalAdjTgt(int** Our1, int** Our2, int** neighbor);
+	
 public:
+	// has ground-truth (.gt file) information
 	//1. Average of f1-score (AvgF1)
 	double CalculateF1(int* A, int* B);
 	double CalculateMaxF1(int* A, int** targetset);
-	double CalculateAvgF1(int** Our, int** GT);
+	double CalAvgF1(int** Our, int** GT);
 	//2. Normalized mutual information (NMI)
-	double CalculateNMI(int** Our, int** GT, int num_nodes);
+	double CalNMI(int** Our, int** GT, int num_nodes);
 	//3. Omega Index
 	//cluster_1 and cluster_2 are first type of cluster structure, each line denotes a set of clusters a specific node belongs.
-	double CalculateOmegaIndex(int** cluster_1, int** cluster_2, int num_nodes);
+	double CalOmegaIndex(int** cluster_1, int** cluster_2, int num_nodes);
 	//4. Adjusted Rand Index (ARI)
-	double CalculateARI(int** Our, int** GT, int num_nodes);
+	double CalARI(int** Our, int** GT, int num_nodes);
 };
 
+//calculating modularity of non-overlapping cluster structure
+double ClusterTest::CalNonOverlapModul(int** Our1, int** Our2, int** neighbor, int num_edges) {
+	// Our2 is the second type of cluster structures in which each line denotes a node's memberships,
+	// if the cluster is non-overlapping, each one-dimensional array only has two value, the first value is 1 which is useless.
+	// num_edges is the number of all edges in the graph
+	int i = 0;
+	int k = 0;
+	// number of all nodes in the graph
+	int num_nodes = neighbor[0][0];
+	
+	double* theta = new double[Our1[0][0] + 1];
+	theta[0] = Our1[0][0];
+	for (k = 1; k <= theta[0]; k++) {
+		theta[k] = 0;
+		for (i = 1; i <= Our1[k][0]; i++) { theta[k] += neighbor[Our1[k][i]][0]; }
+		theta[k] /= 2 * num_edges;
+	}
+	
+	// modularity of single node
+	double* singleModul = new double[num_nodes + 1];
+	singleModul[0] = num_nodes;
+	double tempValue = 0.0;
+	double SumModul = 0.0;
+	for (i = 1; i <= num_nodes; i++) {
+		tempValue = 0.0;
+		singleModul[i] = 0.0;
+		// determine whether node-i does not belong to any cluster
+		if (Our2[i][0] == 0) { 
+			singleModul[i] = 0; 
+		} else if (neighbor[i][0] != 0) {
+			tempValue = NumIntersection(neighbor[i], Our1[Our2[i][1]]) / (double)neighbor[i][0];
+			singleModul[i] = (tempValue - theta[Our2[i][1]]) * neighbor[i][0] / 2.0 /num_edges;
+		}
+		// summation of all nodes' modularity
+		SumModul += singleModul[i];
+	}
+	return SumModul;
+}
+
+//calculating tightness of cluster structure
+double ClusterTest::CalTgt(int** Our1, int** Our2, int** neighbor) {
+	int i = 0;
+	int j = 0;
+	int k = 0;
+	int q = 0;
+	int flag = 0;
+	double FirTerm = 0.0;
+	double SecTerm = 0.0;
+	int num_clusters = Our1[0][0];
+	int num_nodes = neighbor[0][0];
+	double SumTgt = 0.0;
+	
+	double* SinglTgt = new double[num_clusters + 1];
+	SinglTgt[0] = num_clusters;
+	int* numInEdges = new int[num_clusters + 1];
+	numInEdges[0] = num_clusters;
+	int* numOutEdges = new int[num_clusters + 1];
+	numOutEdges[0] = num_clusters;
+	
+	//a cluster k
+	for (k = 1; k <= num_clusters; k++) {
+		SinglTgt[k] = 0.0;
+		numInEdges[k] = 0;
+		numOutEdges[k] = 0;
+		// a node i in the cluster-k
+		for (i = 1; i <= Our1[k][0]; i++) {
+			// a neighbor of node i, i.e., Our1[k][i]
+			for (j = 1; j <= neighbor[Our1[k][i]][0]; j++) {
+				int* ngtClust = Our2[neighbor[Our1[k][i]][j]];
+				// j's memberships, if she belongs cluster k, thus numInEdges[k] plus 1.
+				// it can be applied to non-overlapping as well as overlapping clusters
+				flag = 0;
+				for (q = 1; q <= ngtClust[0]; q++) {
+					if (ngtClust[q] == k) { 
+						numInEdges[k]++; 
+					} else if (flag != 1) { 
+						numOutEdges[k]++;
+						// guarantee numOutEdges[k] is enumed once for node-j,
+						// when node-j belongs to several outter clusters besides cluster-k 
+						flag = 1; 
+					}
+				}
+			}
+		}
+		// each linked node pair in cluster-k is counted twice.
+		// but for the whole graph, each node pair who is not in common cluster is also counted twice,
+		// so it is unecessary for the next command.
+		// numInEdges[k] /= 2;
+		if (Our1[k][0] != 0 && Our1[k][0] != num_nodes) {
+			FirTerm = 2.0 * numInEdges[k] / Our1[k][0] / (double)Our1[k][0];
+			SecTerm = numOutEdges[k] / Our1[k][0] / (double)(num_nodes - Our1[k][0]);
+			SinglTgt[k] = FirTerm - SecTerm;
+		}
+		SumTgt += SinglTgt[k];
+	}
+	return SumTgt;
+}
+
+//calculating adjusted tightness of cluster structure
+//penalizing very small and very large clusters and produces well-balanced solutions
+double ClusterTest::CalAdjTgt(int** Our1, int** Our2, int** neighbor) {
+	int i = 0;
+	int j = 0;
+	int k = 0;
+	int q = 0;
+	int flag = 0;
+	double FirTerm = 0.0;
+	int num_clusters = Our1[0][0];
+	int num_nodes = neighbor[0][0];
+	double SumTgt = 0.0;
+	
+	double* SinglTgt = new double[num_clusters + 1];
+	SinglTgt[0] = num_clusters;
+	int* numInEdges = new int[num_clusters + 1];
+	numInEdges[0] = num_clusters;
+	int* numOutEdges = new int[num_clusters + 1];
+	numOutEdges[0] = num_clusters;
+	
+	//a cluster k
+	for (k = 1; k <= num_clusters; k++) {
+		SinglTgt[k] = 0.0;
+		numInEdges[k] = 0;
+		numOutEdges[k] = 0;
+		// a node i in the cluster-k
+		for (i = 1; i <= Our1[k][0]; i++) {
+			// a neighbor of node i, i.e., Our1[k][i]
+			for (j = 1; j <= neighbor[Our1[k][i]][0]; j++) {
+				int* ngtClust = Our2[neighbor[Our1[k][i]][j]];
+				// j's memberships, if she belongs cluster k, thus numInEdges[k] plus 1.
+				// it can be applied to non-overlapping as well as overlapping clusters
+				flag = 0;
+				for (q = 1; q <= ngtClust[0]; q++) {
+					if (ngtClust[q] == k) { 
+						numInEdges[k]++; 
+					} else if (flag != 1) { 
+						numOutEdges[k]++;
+						// guarantee numOutEdges[k] is enumed once for node-j,
+						// when node-j belongs to several outter clusters besides cluster-k 
+						flag = 1; 
+					}
+				}
+			}
+		}
+		// each linked node pair in cluster-k is counted twice.
+		// but for the whole graph, each node pair who is not in common cluster is also counted twice,
+		// so it is unecessary for the next command.
+		// numInEdges[k] /= 2;
+		if (Our1[k][0] != 0) {
+			FirTerm = 2.0 * (num_nodes - Our1[k][0]) * numInEdges[k] /  (double)Our1[k][0];
+			SinglTgt[k] = FirTerm - numOutEdges[k];
+		}
+		SumTgt += SinglTgt[k];
+	}
+	return SumTgt;
+}
+
 //calculating F1
-double PerformanceTest::CalculateF1(int* A, int* B) {
+double ClusterTest::CalculateF1(int* A, int* B) {
 	int K_A = A[0];
 	int K_B = B[0];
 	//first element of InterUnion is useless, 
@@ -524,13 +698,13 @@ double PerformanceTest::CalculateF1(int* A, int* B) {
 }
 
 //calculating maximum of F1
-double PerformanceTest::CalculateMaxF1(int* A, int** targetset) {
+double ClusterTest::CalculateMaxF1(int* A, int** targetset) {
 	int K_A = A[0];
 	int Size_T = targetset[0][0];
 	double maxf1 = 0.0;
 	int q = 1;
 	for (q = 1; q <= Size_T; q++) {
-		//double PerformanceTest::CalculateF1(int* A, int* B)
+		//double ClusterTest::CalculateF1(int* A, int* B)
 		double tempf1 = CalculateF1(A, targetset[q]);
 		if (tempf1 >= maxf1) { maxf1 = tempf1; }
 	}
@@ -538,7 +712,7 @@ double PerformanceTest::CalculateMaxF1(int* A, int** targetset) {
 }
 
 //calculating the average of f1-score
-double PerformanceTest::CalculateAvgF1(int** Our, int** GT) {
+double ClusterTest::CalAvgF1(int** Our, int** GT) {
 	int K_1 = Our[0][0];
 	int K_2 = GT[0][0];
 	double* MaxF1_1 = new double[K_1 + 1];
@@ -550,7 +724,7 @@ double PerformanceTest::CalculateAvgF1(int** Our, int** GT) {
 	double sumMAXF1_1 = 0.0;
 	double sumMAXF1_2 = 0.0;
 	for (p = 1; p <= K_1; p++) {
-		//double PerformanceTest::CalculateMaxF1(int* A, int** targetset)
+		//double ClusterTest::CalculateMaxF1(int* A, int** targetset)
 		MaxF1_1[p] = CalculateMaxF1(Our[p], GT);
 		sumMAXF1_1 += MaxF1_1[p];
 	}
@@ -563,7 +737,7 @@ double PerformanceTest::CalculateAvgF1(int** Our, int** GT) {
 }
 
 //calculating the normalized mutual information (NMI)
-double PerformanceTest::CalculateNMI(int** Our, int** GT, int num_nodes) {
+double ClusterTest::CalNMI(int** Our, int** GT, int num_nodes) {
 	int size_a = Our[0][0];
 	int size_b = GT[0][0];
 
@@ -626,7 +800,7 @@ double PerformanceTest::CalculateNMI(int** Our, int** GT, int num_nodes) {
 
 //calculating the value of Omega index
 //cluster_1 and cluster_2 are first type of cluster structure (each line denotes a cluster id set this node belongs).
-double PerformanceTest::CalculateOmegaIndex(int** cluster_1, int** cluster_2, int num_nodes) {
+double ClusterTest::CalOmegaIndex(int** cluster_1, int** cluster_2, int num_nodes) {
 	int i = 1;
 	int j = 1;
 	int sum_temp = 0;
@@ -641,7 +815,7 @@ double PerformanceTest::CalculateOmegaIndex(int** cluster_1, int** cluster_2, in
 }
 
 //calculating Adjusted Rand Index (ARI)
-double PerformanceTest::CalculateARI(int** Our, int** GT, int num_nodes) {
+double ClusterTest::CalARI(int** Our, int** GT, int num_nodes) {
 	int size_a = Our[0][0];
 	int size_b = GT[0][0];
 	int i = 1;
@@ -674,7 +848,6 @@ double PerformanceTest::CalculateARI(int** Our, int** GT, int num_nodes) {
 	
 	return results;
 }
-
 
 
 //class of correlation between number of common clusters and average of proximities.
@@ -777,7 +950,7 @@ int main(int argc, char **argv)
 	char* head = argv[1]; // name of dataset
 	// int TypeProx = atoi(argv[2]); // type of second-order proximity
 	Graph mygraph(head); // initialize an object
-	struct timeval tod1, tod2, tod3, tod4; // record time
+	struct timeval tod1, tod2, tod3, tod4, tod5, tod6; // record time
 	
 //Phase: Loading data
 	cout << "========= " << "Load graph: " << head << " ================== "<< endl;
@@ -804,11 +977,23 @@ int main(int argc, char **argv)
 	
 	
 //Tools: Performance Test on nodes clustering
-	/*PerformanceTest mytest;
-	cout << "AvgF1 = " << mytest.CalculateAvgF1(mygraph.clusters, mygraph.clusters) << endl;
-	cout << "NMI = " << mytest.CalculateNMI(mygraph.clusters, mygraph.clusters, mygraph.num_nodes) << endl;
-	cout << "Omega Index = " << mytest.CalculateOmegaIndex(mygraph.cluster, mygraph.cluster, mygraph.num_nodes) << endl;
-	cout << "ARI = " << mytest.CalculateARI(mygraph.clusters, mygraph.clusters, mygraph.num_nodes) << endl;*/
+	cout << "========= " << "Performance test on nodes clustering." << "================== "<< endl;
+	ClusterTest mytest;
+	gettimeofday(&tod5, NULL);
+	// no gt
+	cout << "##### no ground-truth information:" << endl;
+	cout << "Modularity (no overlapping) = " << mytest.CalNonOverlapModul(mygraph.clusters, mygraph.cluster, mygraph.neighbor, mygraph.num_edges) << endl;
+	cout << "Tightness = " << mytest.CalTgt(mygraph.clusters, mygraph.cluster, mygraph.neighbor) << endl;
+	cout << "Adjusted Tightness = " << mytest.CalAdjTgt(mygraph.clusters, mygraph.cluster, mygraph.neighbor) << endl;
+	cout << endl;
+	// with gt
+	cout << "##### with ground-truth information:" << endl;
+	cout << "AvgF1 = " << mytest.CalAvgF1(mygraph.clusters, mygraph.clusters) << endl;
+	cout << "NMI = " << mytest.CalNMI(mygraph.clusters, mygraph.clusters, mygraph.num_nodes) << endl;
+	cout << "Omega Index = " << mytest.CalOmegaIndex(mygraph.cluster, mygraph.cluster, mygraph.num_nodes) << endl;
+	cout << "ARI = " << mytest.CalARI(mygraph.clusters, mygraph.clusters, mygraph.num_nodes) << endl;
+	gettimeofday(&tod6, NULL);
+	cout << "========= " << "Time cost: " << todiff(&tod6, &tod5) / 1000000.0 << "s" << " =========" << endl;
 	
 	return 0;
 }

@@ -8,8 +8,8 @@
 
 # Tips:
 1. All one-dimensional arrays' first element's value is the number of all elements with them. (e.g., if we store 10 values in an one-dimensional array A[11], then A[0] is assigned the value 10). Although this operation comes at the cost of a certain amount of space consumption, it will facilitate the indexing of vector elements.
-2. For the two-dimensional arrays (e.g., B), the first one-dimensional array within them is set as B[0] = new int[1]; B[0][0] = "the number of one-dimensional arrays - 1", other one-dimensional array's first element is also the correspoing number of elements (as Tips 1 shows).
-3. Generally, for the three-dimensional arrays (e.g., C), the first element C[0] only has one element C[0][0], storing "the number of two-dimensional arrays - 1".
+2. For the two-dimensional arrays (e.g., B), the first one-dimensional array within them is set as B[0] = new int[1]; B[0][0] = "the number of one-dimensionaminusl arrays minus 1", other one-dimensional array's first element is also the correspoing number of elements (as Tips 1 shows).
+3. Generally, for the three-dimensional arrays (e.g., C), the first element C[0] only has one element C[0][0], storing "the number of two-dimensional arrays minus 1".
 
 # Commands:
 1. g++ sonta.cpp -o sonta

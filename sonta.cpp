@@ -61,6 +61,20 @@ void Rand(double* dRands, int nCount) {
 	}
 }
 
+//determine whether a value exists in an array. 
+//If it exists, return the index of the first element equal to this value;
+//return 0, otherwise.
+template<typename Type>
+int find(Type* set1, Type object) {
+	if (set1[0] == 0) { return 0; }
+	int i = 0;
+	int ind = 0;
+	for (i = 1; i <= set1[0]; i++) {
+		if (object == set1[i]) { ind = i; break; }
+	}
+	return ind;
+}
+
 //number of intersection set between two sets
 //the elements of each set must be stored in ascending order!!!!
 template <typename Type>
@@ -598,7 +612,7 @@ double ClusterTest::CalTgt(int** Our1, int** Our2, int** neighbor) {
 						numInEdges[k]++; 
 					} else if (flag != 1) { 
 						numOutEdges[k]++;
-						// guarantee numOutEdges[k] is enumed once for node-j,
+						// guarantee numOutEdges[k] is counted once for node-j,
 						// when node-j belongs to several outter clusters besides cluster-k 
 						flag = 1; 
 					}
@@ -657,7 +671,7 @@ double ClusterTest::CalAdjTgt(int** Our1, int** Our2, int** neighbor) {
 						numInEdges[k]++; 
 					} else if (flag != 1) { 
 						numOutEdges[k]++;
-						// guarantee numOutEdges[k] is enumed once for node-j,
+						// guarantee numOutEdges[k] is counted once for node-j,
 						// when node-j belongs to several outter clusters besides cluster-k 
 						flag = 1; 
 					}
@@ -997,3 +1011,4 @@ int main(int argc, char **argv)
 	
 	return 0;
 }
+	

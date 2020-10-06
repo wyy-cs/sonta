@@ -23,6 +23,23 @@
 
 using namespace std;
 
+// generate a random vector whose summation of all elements equals 1.
+double* randArrSumOne(int NumEntry) {
+	//NumEntry is the number of elements
+	srand((unsigned)time(0) * rand());
+	double* Array = new double[NumEntry + 1];
+	Array[0] = NumEntry;
+	double SumEntry = 0.0;
+	int i, TempRand;
+	for (i = 1; i <= NumEntry; i++) {
+		TempRand = rand();// randomly generate a random value 0 - 0x7FFF(i.e., 0 -- RAND_MAX)
+		Array[i] = (double)TempRand / RAND_MAX;//map the random value to the internal (0, 1)
+		SumEntry += Array[i];
+	}
+	for (i = 1; i <= NumEntry; i++) { Array[i] /= SumEntry; }
+	return Array;
+}
+
 // record the cost time from tod1 to tod2
 long long int todiff(struct timeval* tod1, struct timeval* tod2) {
     long long t1, t2;
@@ -42,23 +59,6 @@ char* strcatre(char* s1, char* s2) {
 	*(s3++) = '\0';
 	for(i = 0; i < len1 + len2 + 1; i++) { s3--; }
 	return s3;
-}
-
-// record the system time (for generating a random value in function Rand())
-unsigned long GetTickCount() {
-    struct timespec ts;  
-    clock_gettime(CLOCK_MONOTONIC, &ts);  
-    return (ts.tv_sec * 1000 + ts.tv_nsec / 1000000);  
-} 
-
-// generate a random vector
-void Rand(double* dRands, int nCount) {
-	int i;
-	for(i = 0; i < nCount; i++) {
-		int nRand = rand();// randomly generate a random value 0 - 0x7FFF(i.e., 0 -- RAND_MAX)
-		double dRand = (double)nRand / RAND_MAX;//map the random value to the internal (-1, 1)
-		dRands[i] = dRand;
-	}
 }
 
 // determine whether a value exists in an array. 
@@ -125,6 +125,8 @@ class Graph {
 public:
 	// dataset name (do not contain the suffix name)
 	char* name_dataset;
+	// fixed for calculating second-proximity
+	int TypeTopolSimil;
 	
 	/*----------------------------basic topology information of pure graph--------------------------*/
 	// number of nodes
@@ -136,8 +138,6 @@ public:
 	int** neighbor;
 	// second-order proximity
 	double** proximity;
-	// fixed for calculating second-proximity
-	int TypeTopolSimil;
 
 	/*----------------------------real cluster information (ground truth)----------------------------*/
 	// each one-dimension array of corresponding node contains the cluster ids she belongs,
@@ -148,6 +148,12 @@ public:
 	int** clusters;
 	// number of real clusters
 	int num_clusters; 
+	// number of common communities of node pairs
+	int** NumCommCommu;
+	// the correlation between the number of common clusters and average of proximity.
+	// first value correlation[0] is not the number of elements, 
+	// here is the correlation between (common clusters equals 0) and Proximity.
+	double* correlation;
 	
 	/*------------------weighted graph (have not used/defined, 2020-10-4)------------*/
 	// values on nodes (each node is associated with a single value (e.g., centrality))
@@ -167,8 +173,6 @@ public:
 public:
 	// constructor (initialization, file name is needed)
 	Graph(char* dataname) { name_dataset = dataname; }
-	// destructor
-	~Graph(){}
 	// load a graph with topology information
 	void ReadPureDirGraph();
 	// load a graph with topology and node feature information
@@ -176,10 +180,17 @@ public:
 	// calculate second-order proximity of one node pair
 	double NeighborBasedSimilarity(int* Node_1, int* Node_2, int type);
 	// calculate second-order proximity of all node pairs in a graph
-	void CalculateSecondOrderProximity(int type);
+	void CalSecOrdProx(int type);
 	
 	// load real cluster information
 	void ReadGTclusters();
+	// calculate the number of common communities of node pairs
+	void CalculateNumCommCommu();
+	// calculate the correlation
+	void CalCorrelation();
+	// output the correlation
+	void OutputCorrelation();
+	
 	// visualize the real cluster strucutre
 	void VisualizeGraph();
 };
@@ -341,14 +352,14 @@ double Graph::NeighborBasedSimilarity(int* Node_1, int* Node_2, int type) {
 }
 
 // calculate the second-order proximity
-void Graph::CalculateSecondOrderProximity(int type) {
+void Graph::CalSecOrdProx(int type) {
+	TypeTopolSimil = type; // initialize class member variable in class Graph
 	if (type == 1) { cout << "Second-order proximity: Jaccard Coefficient" << endl; }
 	else if (type == 2) { cout << "Second-order proximity: Salton Index" << endl; }
 	else if (type == 3) { cout << "Second-order proximity: Sorensen Index" << endl;	}
 	else if (type == 4) { cout << "Second-order pairroximity: Hub Promoted Index" << endl; }
 	else if (type == 5) { cout << "Second-order pairroximity: Hub Depressed Index" << endl; }
 	else if (type == 6) { cout << "Second-order pairroximity: Leicht-Holme-Newman Index" << endl; }
-	TypeTopolSimil = type; // initialize class member variable in class Graph
 	int i = 1;
 	int j = 1;
 	int k = 1;
@@ -462,6 +473,83 @@ void Graph::ReadGTclusters() {
 	delete []state;
 }
 
+void Graph::CalculateNumCommCommu() {
+	int i = 1;
+	int j = 1;
+	
+	NumCommCommu = new int*[num_nodes + 1];
+	NumCommCommu[0] = new int[1]; 
+	//do not ignore it !!! otherwise, "core dumped" happens when free memory space.
+	NumCommCommu[0][0] = num_nodes;
+	
+	for (i = 1; i <= num_nodes; i++) {
+		NumCommCommu[i] = new int[num_nodes - i + 1];
+		NumCommCommu[i][0] = num_nodes - i;
+		for (j = i+1; j <= num_nodes; j++) {
+			NumCommCommu[i][j-i] = NumIntersection(cluster[i], cluster[j]);
+		}
+		printf("\r#Common Communities Calculation Completed Progress: %.2lf%%(%d)", i / double(num_nodes) * 100, i);
+		fflush(stdout);
+	}
+	cout << endl;
+}
+
+void Graph::CalCorrelation() {
+	CalculateNumCommCommu();
+	int i = 1;
+	int j = 1;
+	correlation = new double[num_clusters + 1];
+	correlation[0] = 0.0;
+	
+	// store the number of node pairs of specific number of common clusters, 
+	// for subsequent calculation of average
+	int* NumNodePairs;
+	NumNodePairs = new int[num_clusters + 1];
+	NumNodePairs[0] = num_clusters;	
+	// initialization
+	for (i = 0; i <= num_clusters; i++) {
+		correlation[i] = 0;
+		NumNodePairs[i] = 0; 
+	}	
+	// summation
+	for (i = 1; i <= num_nodes; i++) {
+		for (j = i + 1; j <= num_nodes; j++) {
+			NumNodePairs[NumCommCommu[i][j-i]]++;
+			correlation[NumCommCommu[i][j-i]] += proximity[i][j-i];
+		}
+	}	
+	// average
+	for (i = 0; i <= num_clusters; i++) {
+		correlation[i] /= NumNodePairs[i]; 
+		if(isnan(correlation[i]) == 0) {
+			cout << i << " common clusters: " << correlation[i] << endl;
+		}
+	}
+}
+
+void Graph::OutputCorrelation() {
+	// Output the correlation to a file 
+	char* graphtail = (char*)".correlation";
+	char* graphfile = strcatre(name_dataset, graphtail);
+	ofstream ffout;
+	ffout.open(graphfile);
+	ffout << "Type of Proximity: ";
+	if (TypeTopolSimil == 1) { ffout << "Jaccard Coefficient" << endl; }
+	else if (TypeTopolSimil == 2) { ffout << "Salton Index" << endl; }
+	else if (TypeTopolSimil == 3) { ffout << "Sorensen Index" << endl; }
+	else if (TypeTopolSimil == 4) { ffout << "Hub Promoted Index" << endl; }
+	else if (TypeTopolSimil == 5) { ffout << "Hub Depressed Index" << endl; }
+	else if (TypeTopolSimil == 6) { ffout << "Leicht-Holme-Newman Index" << endl; }
+	ffout << "NumCommCommu   " << " Average_proximity_of_all_corresponding_node_pairs" << endl;
+	int i = 0;	
+	for (i = 0; i <= num_clusters; i++) {
+		if(isnan(correlation[i]) == 0) {
+			ffout << i << " " << correlation[i] << endl;
+		}
+	}
+	ffout.close();
+}
+
 // visualize the graph (output a .gml file which can be fed into software named Cytoscape
 void Graph::VisualizeGraph() {
 	char* graphtail = (char*)".gml";
@@ -499,7 +587,7 @@ void Graph::VisualizeGraph() {
 }
 
 
-//Class of performance test
+//Class of performance test on nodes clustering
 /*Tips:
 1. The cluster structure of calculating AvgF1, NMI, and ARI is the second Type (each line denotes a set of nodes in a common community)
 2. The cluster structure of calculating Omega Index is the first Type (each line denotes a set of clusters a specific node belongs)
@@ -894,105 +982,37 @@ double ClusterTest::CalARI(int** Our, int** GT, int num_nodes) {
 }
 
 
-// class of correlation between number of common clusters among node pairs and average of proximities.
-class CorreNumComClusAvgProx {
+// class of SIMGT (Wang, et al. Applied Mathematics and Computation, 2021)
+class SIMGT {
 public:
-	// number of common communities of node pairs
-	int** NumCommCommu;
-	// first value correlation[0] is not the number of elements, 
-	// here is the correlation between (common clusters equals 0) and Proximity.
-	double* correlation;
+	// all nodes' membership vector
+	double** Memb;
+	
 public:
-	// calculate the number of common communities of node pairs
-	void CalculateNumCommCommu(Graph mygraph);
-	// calculate the correlation
-	void CalculateCorrelation(Graph mygraph);
-	// output the correlation
-	void OutputCorrelation(Graph mygraph);
+	// randomly initialize Memb
+	void IniMemb1(Graph mygraph);
 };
 
-void CorreNumComClusAvgProx::CalculateNumCommCommu(Graph mygraph) {
-	int i = 1;
-	int j = 1;
-	
-	NumCommCommu = new int*[mygraph.num_nodes + 1];
-	NumCommCommu[0] = new int[1]; 
-	//do not ignore it !!! otherwise, "core dumped" happens when free memory space.
-	NumCommCommu[0][0] = mygraph.num_nodes;
-	
-	for (i = 1; i <= mygraph.num_nodes; i++) {
-		NumCommCommu[i] = new int[mygraph.num_nodes - i + 1];
-		NumCommCommu[i][0] = mygraph.num_nodes - i;
-		for (j = i+1; j <= mygraph.num_nodes; j++) {
-			NumCommCommu[i][j-i] = NumIntersection(mygraph.cluster[i], mygraph.cluster[j]);
-		}
-		printf("\r#Common Communities Calculation Completed Progress: %.2lf%%(%d)", i / double(mygraph.num_nodes) * 100, i);
-		fflush(stdout);
-	}
-	cout << endl;
-}
-
-void CorreNumComClusAvgProx::CalculateCorrelation(Graph mygraph) {
-	CalculateNumCommCommu(mygraph);
-	int i = 1;
-	int j = 1;
-	correlation = new double[mygraph.num_clusters + 1];
-	correlation[0] = 0.0;
-	
-	// store the number of node pairs of specific number of common clusters, 
-	// for subsequent calculation of average
-	int* NumNodePairs;
-	NumNodePairs = new int[mygraph.num_clusters + 1];
-	NumNodePairs[0] = mygraph.num_clusters;	
-	// initialization
-	for (i = 0; i <= mygraph.num_clusters; i++) {
-		correlation[i] = 0;
-		NumNodePairs[i] = 0; 
-	}	
-	// summation
-	for (i = 1; i <= mygraph.num_nodes; i++) {
-		for (j = i + 1; j <= mygraph.num_nodes; j++) {
-			NumNodePairs[NumCommCommu[i][j-i]]++;
-			correlation[NumCommCommu[i][j-i]] += mygraph.proximity[i][j-i];
-		}
-	}	
-	// average
-	for (i = 0; i <= mygraph.num_clusters; i++) {
-		correlation[i] /= NumNodePairs[i]; 
-		if(isnan(correlation[i]) == 0) {
-			cout << i << " common clusters: " << correlation[i] << endl;
-		}
+// randomly initialize Memb
+void SIMGT::IniMemb1(Graph mygraph) {
+	int num_nodes = mygraph.num_nodes;
+	int num_clusters = mygraph.num_clusters;
+	Memb = new double*[num_nodes + 1];
+	Memb[0] = new double[1];
+	Memb[0][0] = num_nodes;
+	for (int i = 1; i <= num_nodes; i++) {
+		Memb[i] = new double[num_clusters + 1];
+		Memb[i] = randArrSumOne(num_clusters);
 	}
 }
-
-void CorreNumComClusAvgProx::OutputCorrelation(Graph mygraph) {
-	// Output the correlation to a file 
-	char* graphtail = (char*)".correlation";
-	char* graphfile = strcatre(mygraph.name_dataset, graphtail);
-	ofstream ffout;
-	ffout.open(graphfile);
-	ffout << "Type of Proximity: ";
-	if (mygraph.TypeTopolSimil == 1) { ffout << "Jaccard Coefficient" << endl; }
-	else if (mygraph.TypeTopolSimil == 2) { ffout << "Salton Index" << endl; }
-	else if (mygraph.TypeTopolSimil == 3) { ffout << "Sorensen Index" << endl; }
-	else if (mygraph.TypeTopolSimil == 4) { ffout << "Hub Promoted Index" << endl; }
-	else if (mygraph.TypeTopolSimil == 5) { ffout << "Hub Depressed Index" << endl; }
-	else if (mygraph.TypeTopolSimil == 6) { ffout << "Leicht-Holme-Newman Index" << endl; }
-	ffout << "NumCommCommu   " << " Average_proximity_of_all_corresponding_node_pairs" << endl;
-	int i = 0;	
-	for (i = 0; i <= mygraph.num_clusters; i++) {
-		if(isnan(correlation[i]) == 0) {
-			ffout << i << " " << correlation[i] << endl;
-		}
-	}
-	ffout.close();
-}
-
 
 int main(int argc, char **argv)
 {
 	char* head = argv[1]; // name of dataset
-	// int TypeProx = atoi(argv[2]); // type of second-order proximity
+	// type of second-order proximity:
+	// 1. Jaccard Coefficient; 2. Salton Index; 3. Sorensen Index; 
+	// 4. Hub Promoted Index; 5. Hub Depressed Index; 6. Leicht-Holme-Newman Index
+	//int TypeProx = atoi(argv[2]);
 	Graph mygraph(head); // initialize an object
 	struct timeval tod1, tod2, tod3, tod4, tod5, tod6; // record time
 	
@@ -1000,7 +1020,7 @@ int main(int argc, char **argv)
 	cout << "========= " << "Load graph: " << head << " ================== "<< endl;
 	gettimeofday(&tod1, NULL);		
 	mygraph.ReadPureDirGraph(); // load .graph file (pure directed graph)
-	mygraph.ReadNodeFeature(); // load .nf file (node feature)
+	//mygraph.ReadNodeFeature(); // load .nf file (node feature)
 	mygraph.ReadGTclusters(); // load .gt file (cluster ground-truth)
 	//VisualizeGraph(mygraph); //output .gml file
 	gettimeofday(&tod2, NULL);
@@ -1010,18 +1030,20 @@ int main(int argc, char **argv)
 // Tools: Calculate second-order proximity and correlation between common clusters of node pairs
 	// 1. Jaccard Coefficient; 2. Salton Index; 3. Sorensen Index; 
 	// 4. Hub Promoted Index; 5. Hub Depressed Index; 6. Leicht-Holme-Newman Index
-	/*cout << "========= " << "CalculateCorrelationBetwProximityAndNumCommClusters " << "================== "<< endl;
+	/*cout << "========= " << "Calculate Correlation" << " ================== "<< endl;
 	gettimeofday(&tod3, NULL);
-	mygraph.CalculateSecondOrderProximity(TypeProx); //CalculateSecondOrderProximity(int type)
-	CorreNumComClusAvgProx mycorrelation; // initialize an object
-	mycorrelation.CalculateCorrelation(mygraph);
-	//mycorrelation.OutputCorrelation(mygraph);
+	mygraph.CalSecOrdProx(TypeProx); //CalSecOrdProx(int type)
+	//mygraph.CalCorrelation();
+	//mygraph.OutputCorrelation();
 	gettimeofday(&tod4, NULL);
 	cout << "========= " << "Time cost: " << todiff(&tod4, &tod3) / 1000000.0 << "s" << " =========" << endl;*/
-	
+		
+// Tools: SIMGT
+	SIMGT mysimgt;
+	mysimgt.IniMemb1(mygraph);
 	
 // Tools: Performance Test on nodes clustering
-	cout << "========= " << "Performance test on nodes clustering." << "================== "<< endl;
+	/*cout << "========= " << "Performance test on nodes clustering." << "================== "<< endl;
 	ClusterTest mytest;
 	gettimeofday(&tod5, NULL);
 	// no gt
@@ -1038,8 +1060,7 @@ int main(int argc, char **argv)
 	cout << "Omega Index = " << mytest.CalOmegaIndex(mygraph.cluster, mygraph.cluster, mygraph.num_nodes) << endl;
 	cout << "ARI = " << mytest.CalARI(mygraph.clusters, mygraph.clusters, mygraph.num_nodes) << endl;
 	gettimeofday(&tod6, NULL);
-	cout << "========= " << "Time cost: " << todiff(&tod6, &tod5) / 1000000.0 << "s" << " =========" << endl;
+	cout << "========= " << "Time cost: " << todiff(&tod6, &tod5) / 1000000.0 << "s" << " =========" << endl;*/
 	
 	return 0;
 }
-	

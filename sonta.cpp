@@ -978,7 +978,7 @@ double ClusterTest::CalARI(int** Our, int** GT, int num_nodes) {
 }
 
 
-// class of BIGCLAM (Wang, et al. Applied Mathematics and Computation, 2021)
+// class of BIGCLAM (Jaewon Yang, Jure Leskovec. WSDM2013)
 class BIGCLAM {
 public:
 	// all nodes' FuzzyMembership vector
@@ -991,8 +991,8 @@ public:
 	double** Grad;
 	// temporal FuzzyMemb for verify
 	double** TempFuzzyMemb;
-	// total utility
-	double TotalUtl;
+	// total likelihood
+	double TotalLikelihood;
 	// Delta for determine the FuzzyMembership according to FuzzyMemb
 	double Delta;
 	// Memb in clusters (similar with mygraph.clusters)
@@ -1011,10 +1011,10 @@ public:
 	void CalGrad(Graph mygraph);
 	// update FuzzyMemb
 	void CalTempFuzzyMemb(Graph mygraph);
-	// calculate total utility
-	double CalUtl(Graph mygraph);
-	// calculate temporal total utility
-	double CalTempUtl(Graph mygraph);
+	// calculate total likelihood
+	double CalLikelihood(Graph mygraph);
+	// calculate temporal total likelihood
+	double CalTempLikelihood(Graph mygraph);
 	// generate crisp clusters according FuzzyMemb and Delta
 	void GenClus(Graph mygraph);
 	// perform BIGCLAM
@@ -1123,8 +1123,8 @@ void BIGCLAM::CalTempFuzzyMemb(Graph mygraph) {
 	}
 }
 
-// calculate total utility
-double BIGCLAM::CalUtl(Graph mygraph) {
+// calculate total likelihood
+double BIGCLAM::CalLikelihood(Graph mygraph) {
 	int num_nodes = mygraph.num_nodes;
 	int num_clusters = mygraph.num_clusters;
 	int** neighbor = mygraph.neighbor;
@@ -1133,7 +1133,7 @@ double BIGCLAM::CalUtl(Graph mygraph) {
 	double TempValue = 0.0;
 	double FirTerm = 0.0;
 	double SecTerm = 0.0;
-	double TotalUtl = 0.0;
+	double TotalLikelihood = 0.0;
 	double* TempVec = new double[num_clusters + 1];
 	TempVec[0] = num_clusters;
 	for (i = 1; i <= num_nodes; i++) {
@@ -1151,17 +1151,17 @@ double BIGCLAM::CalUtl(Graph mygraph) {
 		}
 		//cout << FirTerm << " ";
 		//cout << SecTerm << endl;
-		TotalUtl += FirTerm - SecTerm;
-		printf("\r#Utility Calculation Completed Progress: %.2lf%%(%d)", i / double(num_nodes) * 100, i);
+		TotalLikelihood += FirTerm - SecTerm;
+		printf("\r#likelihood Calculation Completed Progress: %.2lf%%(%d)", i / double(num_nodes) * 100, i);
 		fflush(stdout);
 	}
 	cout << endl;
-	cout << "Total utility: " << TotalUtl << endl;
-	return TotalUtl;
+	cout << "Total likelihood: " << TotalLikelihood << endl;
+	return TotalLikelihood;
 }
 
-// calculate temporal total utility
-double BIGCLAM::CalTempUtl(Graph mygraph) {
+// calculate temporal total likelihood
+double BIGCLAM::CalTempLikelihood(Graph mygraph) {
 	int num_nodes = mygraph.num_nodes;
 	int num_clusters = mygraph.num_clusters;
 	int** neighbor = mygraph.neighbor;
@@ -1170,7 +1170,7 @@ double BIGCLAM::CalTempUtl(Graph mygraph) {
 	double TempValue = 0.0;
 	double FirTerm = 0.0;
 	double SecTerm = 0.0;
-	double newTotalUtl = 0.0;
+	double newTotalLikelihood = 0.0;
 	double* TempVec = new double[num_clusters + 1];
 	TempVec[0] = num_clusters;
 	for (i = 1; i <= num_nodes; i++) {
@@ -1188,11 +1188,11 @@ double BIGCLAM::CalTempUtl(Graph mygraph) {
 		}
 		//cout << FirTerm << " ";
 		//cout << SecTerm << endl;
-		newTotalUtl += FirTerm - SecTerm;
-		//printf("\r#CalUtl: %.2lf%%(%d)", i / double(num_nodes) * 100, i);
+		newTotalLikelihood += FirTerm - SecTerm;
+		//printf("\r#CalLikelihood: %.2lf%%(%d)", i / double(num_nodes) * 100, i);
 		fflush(stdout);
 	}
-	return newTotalUtl;
+	return newTotalLikelihood;
 }
 
 // generate cluster
@@ -1242,14 +1242,14 @@ void BIGCLAM::GenClus(Graph mygraph) {
 void BIGCLAM::performBIGCLAM(Graph mygraph) {
 	int i, k;
 	IniVar(mygraph);
-	double oldUtl = 0.0;
-	double newUtl = CalUtl(mygraph);
+	double oldLikelihood = 0.0;
+	double newLikelihood = CalLikelihood(mygraph);
 	double change = 0.00001;
 	
 	int iter = 1;
 	while (change >= 0.00001 && iter <= MaxIter) {
 		cout << iter << "-th iteration: ";
-		oldUtl = newUtl;
+		oldLikelihood = newLikelihood;
 		FuzzyMemb = TempFuzzyMemb;
 		for (k = 1; k <= mygraph.num_clusters; k++) {
 			SizeClus[k] = 0.0;
@@ -1257,9 +1257,9 @@ void BIGCLAM::performBIGCLAM(Graph mygraph) {
 		}
 		CalGrad(mygraph);
 		CalTempFuzzyMemb(mygraph);
-		newUtl = CalTempUtl(mygraph);
-		cout << "newUtl: " << newUtl << endl;
-		change = abs((newUtl - oldUtl) / oldUtl); 
+		newLikelihood = CalTempLikelihood(mygraph);
+		cout << "newLikelihood: " << newLikelihood << endl;
+		change = abs((newLikelihood - oldLikelihood) / oldLikelihood); 
 		
 		iter++;
 	}

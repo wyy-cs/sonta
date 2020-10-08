@@ -75,7 +75,7 @@ int find(Type* set1, Type object) {
 	return ind;
 }
 
-// number of intersection set between two sets
+// size of intersection set between two sets
 // the elements of each set must be stored in ascending order!!!!
 template <typename Type>
 int NumIntersection(const Type* set1, const Type* set2) {
@@ -97,7 +97,7 @@ int NumIntersection(const Type* set1, const Type* set2) {
 	return joint_number;
 }
 
-// number of union number between two sets
+// size of union set between two sets
 // the elements of each set must be stored in ascending order!!!!
 template <typename Type>
 int NumUnion(const Type* set1, const Type* set2) {
@@ -225,8 +225,7 @@ void Graph::ReadPureDirGraph() {
 	i = 1;
 	
 	fin1.open(graphfile);
-	while(getline (fin1,szLine))
-	{
+	while(getline (fin1,szLine)) {
 		vector<string> tData;
 		istringstream iss(szLine);
 		copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<vector<string> >(tData));
@@ -248,12 +247,10 @@ void Graph::ReadPureDirGraph() {
 		tempset.clear();
 		i++;	
 	}
-	
 	fin1.close();
 	fin1.clear();
 	// each edge is twicely recorded (undirected graph)
-	// num_edges = num_edges / 2;
-	
+	num_edges = num_edges / 2;
 	cout << "Number of Nodes: " << num_nodes << endl;
 	cout << "Number of Edges: " << num_edges << endl;
 }
@@ -353,7 +350,7 @@ double Graph::NeighborBasedSimilarity(int* Node_1, int* Node_2, int type) {
 
 // calculate the second-order proximity
 void Graph::CalSecOrdProx(int type) {
-	TypeTopolSimil = type; // initialize class member variable in class Graph
+	TypeTopolSimil = type; // initialize class FuzzyMember variable in class Graph
 	if (type == 1) { cout << "Second-order proximity: Jaccard Coefficient" << endl; }
 	else if (type == 2) { cout << "Second-order proximity: Salton Index" << endl; }
 	else if (type == 3) { cout << "Second-order proximity: Sorensen Index" << endl;	}
@@ -541,11 +538,8 @@ void Graph::OutputCorrelation() {
 	else if (TypeTopolSimil == 5) { ffout << "Hub Depressed Index" << endl; }
 	else if (TypeTopolSimil == 6) { ffout << "Leicht-Holme-Newman Index" << endl; }
 	ffout << "NumCommCommu   " << " Average_proximity_of_all_corresponding_node_pairs" << endl;
-	int i = 0;	
-	for (i = 0; i <= num_clusters; i++) {
-		if(isnan(correlation[i]) == 0) {
-			ffout << i << " " << correlation[i] << endl;
-		}
+	for (int i = 0; i <= num_clusters; i++) {
+		if(isnan(correlation[i]) == 0) { ffout << i << " " << correlation[i] << endl; }
 	}
 	ffout.close();
 }
@@ -559,8 +553,7 @@ void Graph::VisualizeGraph() {
 	fout << "graph" << endl;
 	fout << "[" << endl;
 	fout << "	directed 0" << endl;
-	int i = 0;
-	int j = 0;
+	int i, j;
 	for(i = 1; i<= num_nodes; i++) {
 		fout << "	node" << endl;
 		fout << "	[" << endl;
@@ -629,7 +622,7 @@ double ClusterTest::CalNonOverlapModul(int** Our1, int** Our2, int** neighbor, i
 	// each one-dimensional array in Our1 denotes a cluster, containing a set of nodes who belongs it.
 	// each one-dimensional array in Our2 denotes a node, containing a set of clusters to which a specific node belongs.
 	// if the cluster structure is non-overlapping, each one-dimensional array in Our2 only has two values, the first value is 1 which is useless.
-	// if input is a overlapping cluster structure, this function will only take the first cluster for each node as her membership.
+	// if input is a overlapping cluster structure, this function will only take the first cluster for each node as her FuzzyMembership.
 	// num_edges is the number of all edges in the graph.
 	int i = 0;
 	int k = 0;
@@ -679,6 +672,7 @@ double ClusterTest::CalOverlapModul(int** Our1, int** Our2, int** neighbor, int 
 	double SumModul = 0.0;
 	
 	for (k = 1; k <= num_clusters; k++) {
+		//cout << k << ": for test!!!" << endl;
 		if (Our1[k][0] < 2) { singleModul[k] = 0.0; continue; }
 		singleModul[k] = 0.0;
 		for (i = 1; i < Our1[k][0]; i++) {
@@ -730,7 +724,7 @@ double ClusterTest::CalTgt(int** Our1, int** Our2, int** neighbor) {
 			// a neighbor of node i, i.e., Our1[k][i]
 			for (j = 1; j <= neighbor[Our1[k][i]][0]; j++) {
 				int* ngtClust = Our2[neighbor[Our1[k][i]][j]];
-				// j's memberships, if she belongs cluster k, thus numInEdges[k] plus 1.
+				// j's FuzzyMemberships, if she belongs cluster k, thus numInEdges[k] plus 1.
 				// it can be applied to non-overlapping as well as overlapping clusters
 				flag = 0;
 				for (q = 1; q <= ngtClust[0]; q++) {
@@ -789,7 +783,7 @@ double ClusterTest::CalAdjTgt(int** Our1, int** Our2, int** neighbor) {
 			// a neighbor of node i, i.e., Our1[k][i]
 			for (j = 1; j <= neighbor[Our1[k][i]][0]; j++) {
 				int* ngtClust = Our2[neighbor[Our1[k][i]][j]];
-				// j's memberships, if she belongs cluster k, thus numInEdges[k] plus 1.
+				// j's FuzzyMemberships, if she belongs cluster k, thus numInEdges[k] plus 1.
 				// it can be applied to non-overlapping as well as overlapping clusters
 				flag = 0;
 				for (q = 1; q <= ngtClust[0]; q++) {
@@ -875,6 +869,7 @@ double ClusterTest::CalAvgF1(int** Our, int** GT) {
 }
 
 // calculating the normalized mutual information (NMI)
+// [S. Fortunato. Community detection in graphs. Physics Reports, 486(3-5):75 – 174, 2010.]
 double ClusterTest::CalNMI(int** Our, int** GT, int num_nodes) {
 	int size_a = Our[0][0];
 	int size_b = GT[0][0];
@@ -932,6 +927,7 @@ double ClusterTest::CalNMI(int** Our, int** GT, int num_nodes) {
 }
 
 // calculating the value of Omega index
+// [S. Gregory. Fuzzy overlapping communities in networks. J. of Stat. Mech.: Theory and Experiment, 2011.]
 double ClusterTest::CalOmegaIndex(int** cluster_1, int** cluster_2, int num_nodes) {
 	// each line in cluster_1 and cluster_2 denotes a set of clusters to which a specific node belongs.
 	int i = 1;
@@ -985,36 +981,331 @@ double ClusterTest::CalARI(int** Our, int** GT, int num_nodes) {
 // class of SIMGT (Wang, et al. Applied Mathematics and Computation, 2021)
 class SIMGT {
 public:
-	// all nodes' membership vector
-	double** Memb;
+	// all nodes' FuzzyMembership vector
+	double** FuzzyMemb;
+	// cluster size
+	double* SizeClus;
+	// step size (learn rate)
+	double SizeStep;
+	// gradient of FuzzyMemb
+	double** Grad;
+	// temporal FuzzyMemb for verify
+	double** TempFuzzyMemb;
+	// total utility
+	double TotalUtl;
+	// Delta for determine the FuzzyMembership according to FuzzyMemb
+	double Delta;
+	// Memb in clusters (similar with mygraph.clusters)
+	int** MembClus;
+	// Memb in nodes (similar with mygraph.cluster)
+	int** MembNode;
+	// maximum number of iteration
+	int MaxIter;
 	
 public:
-	// randomly initialize Memb
-	void IniMemb1(Graph mygraph);
+	// constructor (initialization, file name is needed)
+	SIMGT(double sizestep, int maxiter, double delta): SizeStep(sizestep), MaxIter(maxiter), Delta(delta) { }
+	// randomly initialize FuzzyMemb, TempFuzzyMemb, Grad, also the SizeClus is derived
+	void IniVar(Graph mygraph);
+	// calculate the gradient
+	void CalGrad(Graph mygraph);
+	// update FuzzyMemb
+	void CalTempFuzzyMemb(Graph mygraph);
+	// calculate total utility
+	double CalUtl(Graph mygraph);
+	// calculate temporal total utility
+	double CalTempUtl(Graph mygraph);
+	// generate crisp clusters according FuzzyMemb and Delta
+	void GenClus(Graph mygraph);
+	// perform SIMGT
+	void performSIMGT(Graph mygraph);
 };
 
-// randomly initialize Memb
-void SIMGT::IniMemb1(Graph mygraph) {
+// randomly initialize FuzzyMemb, TempFuzzyMemb, Grad; SizeClus is also derived.
+void SIMGT::IniVar(Graph mygraph) {
+	int i, k;
 	int num_nodes = mygraph.num_nodes;
 	int num_clusters = mygraph.num_clusters;
-	Memb = new double*[num_nodes + 1];
-	Memb[0] = new double[1];
-	Memb[0][0] = num_nodes;
+	FuzzyMemb = new double*[num_nodes + 1];
+	FuzzyMemb[0] = new double[1];
+	FuzzyMemb[0][0] = num_nodes;
 	for (int i = 1; i <= num_nodes; i++) {
-		Memb[i] = new double[num_clusters + 1];
-		Memb[i] = randArrSumOne(num_clusters);
+		FuzzyMemb[i] = new double[num_clusters + 1];
+		FuzzyMemb[i] = randArrSumOne(num_clusters);
+	}
+	// derive the size of each clusters
+	SizeClus = new double[num_clusters + 1];
+	SizeClus[0] = num_clusters;
+	for (k = 1; k <= num_clusters; k++) {
+		SizeClus[k] = 0.0;
+		for (i = 1; i <= num_nodes; i++) { SizeClus[k] += FuzzyMemb[i][k]; }
+	}
+	// initialize TempFuzzyMemb, begin by making same with FuzzyMemb
+	// space must be allocated and cannot be directly assigned as a whole part
+	TempFuzzyMemb =  new double*[num_nodes + 1];
+	TempFuzzyMemb[0] = new double[1];
+	TempFuzzyMemb[0][0] = num_nodes;
+	for (i = 1; i <= num_nodes; i++) {
+		TempFuzzyMemb[i] = new double[num_clusters + 1];
+		TempFuzzyMemb[i][0] = num_clusters;
+		for (k = 1; k <= num_clusters; k++) { TempFuzzyMemb[i][k] = FuzzyMemb[i][k]; }
+	}
+	// initialize the Grad
+	Grad =  new double*[num_nodes + 1];
+	Grad[0] = new double[1];
+	Grad[0][0] = num_nodes;
+	for (i = 1; i <= num_nodes; i++) {
+		Grad[i] = new double[num_clusters + 1];
+		Grad[i][0] = num_clusters;
+		for (k = 1; k <= num_clusters; k++) { Grad[i][k] = 0.0; }
+	}
+	// initialize Delta
+	// Delta = sqrt(-log(1-pow(10,-8)));
+	// allocate space for MembClus
+	MembClus = new int*[num_clusters + 1];
+	MembClus[0] = new int[1];
+	MembClus[0][0] = num_clusters;
+	// allocate space for MembNode
+	MembNode = new int*[num_nodes + 1];
+	MembNode[0] = new int[1];
+	MembNode[0][0] = num_nodes;
+}
+
+// calculate the gradient
+void SIMGT::CalGrad(Graph mygraph) {
+	int i, j; // for node index
+	int k, q; // for cluster index
+	double TempValue = 0.0;
+	double FirTerm = 0.0;
+	double SecTerm = 0.0;
+	// calculate gradient
+	for (i = 1; i <= mygraph.num_nodes; i++) {
+		for (q = 1; q <= mygraph.num_clusters; q++) {
+			FirTerm = 0.0;
+			for (j = 1; j <= mygraph.neighbor[i][0]; j++) {
+				TempValue = 0.0;
+				for (k = 1; k <= mygraph.num_clusters; k++) { 
+					TempValue += FuzzyMemb[i][k] * FuzzyMemb[mygraph.neighbor[i][j]][k]; 
+				}
+				if (TempValue == 0) { 
+					FirTerm += FuzzyMemb[mygraph.neighbor[i][j]][q] / pow(10, -7); 
+				} else {
+					FirTerm += FuzzyMemb[mygraph.neighbor[i][j]][q] * exp(-TempValue) / (1 - exp(-TempValue));
+				}				
+			}
+			TempValue = 0.0;
+			SecTerm = 0.0;
+			for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
+				TempValue += FuzzyMemb[mygraph.neighbor[i][j]][q]; 
+			}
+			SecTerm = SizeClus[q] - FuzzyMemb[i][q] - TempValue;
+			Grad[i][q] = FirTerm - SecTerm;
+		}
+		//printf("\r#Gradient Calculation Completed Progress: %.2lf%%(%d)", i / double(mygraph.num_nodes) * 100, i);
+		//fflush(stdout);
 	}
 }
+
+// calculate the TempFuzzyMemb
+void SIMGT::CalTempFuzzyMemb(Graph mygraph) {
+	int i, k;
+	double TempValue = 0.0;
+	for (i = 1; i <= mygraph.num_nodes; i++) {
+		for (k = 1; k <= mygraph.num_clusters; k++) {
+			TempValue = 0.0;
+			TempValue = FuzzyMemb[i][k] + SizeStep * (Grad[i][k]);
+			if (TempValue < 0) {
+				TempFuzzyMemb[i][k] = pow(10, -8);
+			} else { TempFuzzyMemb[i][k] = TempValue; }
+		}
+	}
+	//normalization
+	for (i = 1; i <= mygraph.num_nodes; i++) {
+		double temp = 0.0;
+		for (k = 1; k <= mygraph.num_clusters; k++) { temp += TempFuzzyMemb[i][k]; }
+		for (k = 1; k <= mygraph.num_clusters; k++) { TempFuzzyMemb[i][k] /= temp; }
+	}
+}
+
+// calculate total utility
+double SIMGT::CalUtl(Graph mygraph) {
+	int i, j; // for node index
+	int k; // for cluster index
+	double TempValue = 0.0;
+	double FirTerm = 0.0;
+	double SecTerm = 0.0;
+	double TotalUtl = 0.0;
+	double* TempVec = new double[mygraph.num_clusters + 1];
+	TempVec[0] = mygraph.num_clusters;
+	for (i = 1; i <= mygraph.num_nodes; i++) {
+		FirTerm = 0.0;
+		for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
+			TempValue = 0.0;
+			for (k = 1; k <= mygraph.num_clusters; k++) { 
+				TempValue += FuzzyMemb[i][k] * FuzzyMemb[mygraph.neighbor[i][j]][k]; 
+			}
+			FirTerm += log(1 - exp(-TempValue));
+		}
+		SecTerm = 0.0;
+		for (k = 1; k <= mygraph.num_clusters; k++) {
+			for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
+				TempValue += FuzzyMemb[mygraph.neighbor[i][j]][k]; 
+			}
+			TempVec[k] = SizeClus[k] - FuzzyMemb[i][k] - TempValue;
+			SecTerm += FuzzyMemb[i][k] * TempVec[k];
+		}
+		//cout << FirTerm << " ";
+		//cout << SecTerm << endl;
+		TotalUtl += FirTerm - SecTerm;
+		printf("\r#Utility Calculation Completed Progress: %.2lf%%(%d)", i / double(mygraph.num_nodes) * 100, i);
+		fflush(stdout);
+	}
+	cout << endl;
+	cout << "Total utility: " << TotalUtl << endl;
+	return TotalUtl;
+}
+
+// calculate temporal total utility
+double SIMGT::CalTempUtl(Graph mygraph) {
+	int i, j; // for node index
+	int k; // for cluster index
+	double TempValue = 0.0;
+	double FirTerm = 0.0;
+	double SecTerm = 0.0;
+	double newTotalUtl = 0.0;
+	double* TempVec = new double[mygraph.num_clusters + 1];
+	TempVec[0] = mygraph.num_clusters;
+	for (i = 1; i <= mygraph.num_nodes; i++) {
+		FirTerm = 0.0;
+		for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
+			TempValue = 0.0;
+			for (k = 1; k <= mygraph.num_clusters; k++) { 
+				TempValue += TempFuzzyMemb[i][k] * TempFuzzyMemb[mygraph.neighbor[i][j]][k]; 
+			}
+			FirTerm += log(1 - exp(-TempValue));
+		}
+		SecTerm = 0.0;
+		for (k = 1; k <= mygraph.num_clusters; k++) { 
+			for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
+				TempValue += TempFuzzyMemb[mygraph.neighbor[i][j]][k];
+			}
+			TempVec[k] = SizeClus[k] - TempFuzzyMemb[i][k] - TempValue;
+			SecTerm += TempFuzzyMemb[i][k] * TempVec[k];
+		}
+		//cout << FirTerm << " ";
+		//cout << SecTerm << endl;
+		newTotalUtl += FirTerm - SecTerm;
+		//printf("\r#CalUtl: %.2lf%%(%d)", i / double(mygraph.num_nodes) * 100, i);
+		fflush(stdout);
+	}
+	return newTotalUtl;
+}
+
+// generate cluster
+void SIMGT::GenClus(Graph mygraph) {
+	int temp, i, k, c;
+	for (i = 1; i <= mygraph.num_nodes; i++) {
+		temp = 0;
+		// determine the space size for space allocation
+		for (k = 1; k <= mygraph.num_clusters; k++) {
+			if (FuzzyMemb[i][k] > Delta) { temp++; }
+		}
+		// allocate space
+		MembNode[i] = new int[temp + 1];
+		MembNode[i][0] = temp; 
+		c = 1;
+		for (k = 1; k <= mygraph.num_clusters; k++) {
+			if (FuzzyMemb[i][k] > Delta) { 
+				MembNode[i][c] = k; 
+				c++;
+			}
+		}
+	}
+	
+	for (k = 1; k <= mygraph.num_clusters; k++) {
+		temp = 0;
+		// determine the space size for space allocation
+		for (i = 1; i <= mygraph.num_nodes; i++) {
+			if (FuzzyMemb[i][k] > Delta) { temp++; }
+		}
+		// allocate space
+		MembClus[k] = new int[temp + 1];
+		MembClus[k][0] = temp; 
+		c = 1;
+		for (i = 1; i <= mygraph.num_nodes; i++) {
+			if (FuzzyMemb[i][k] > Delta) { 
+				MembClus[k][c] = i; 
+				c++;
+			}
+		}
+	}
+}	
+
+// perform SIMGT
+void SIMGT::performSIMGT(Graph mygraph) {
+	int i, k;
+	IniVar(mygraph);
+	double oldUtl = 0.0;
+	double newUtl = CalUtl(mygraph);
+	double change = 0.00001;
+	
+	int iter = 1;
+	while (change >= 0.00001 && iter <= MaxIter) {
+		cout << iter << "-th iteration: ";
+		oldUtl = newUtl;
+		FuzzyMemb = TempFuzzyMemb;
+		for (k = 1; k <= mygraph.num_clusters; k++) {
+			SizeClus[k] = 0.0;
+			for (i = 1; i <= mygraph.num_nodes; i++) { SizeClus[k] += FuzzyMemb[i][k]; }
+		}
+		CalGrad(mygraph);
+		CalTempFuzzyMemb(mygraph);
+		newUtl = CalTempUtl(mygraph);
+		cout << "newUtl: " << newUtl << endl;
+		change = abs((newUtl - oldUtl) / oldUtl);
+		
+		iter++;
+	}
+	GenClus(mygraph);
+	
+	/*for (i = 1; i <= mygraph.num_nodes; i++) {
+		for (k = 1; k <= mygraph.num_clusters; k++) {
+			// cout << FuzzyMemb[i][k] << ":(" << Grad[i][k] << "," << TempFuzzyMemb[i][k] << ") ";
+			if (FuzzyMemb[i][k] > Delta) { 
+				cout << 1 << " ";
+			} else { cout << 0 << " "; }
+		}
+		cout << endl;
+	}
+	for (k = 1; k <= mygraph.num_clusters; k++) {
+		for (i = 1; i <= mygraph.num_nodes; i++) {
+			// cout << FuzzyMemb[i][k] << ":(" << Grad[i][k] << "," << TempFuzzyMemb[i][k] << ") ";
+			if (FuzzyMemb[i][k] > Delta) { cout << i << " "; }
+		}
+		cout << endl;
+	}
+	for (i = 1; i <= mygraph.num_nodes; i++) {
+		cout << "(node-" << i << ") ";
+		for (k = 1; k <= MembNode[i][0]; k++) {
+			cout << MembNode[i][k] << " ";
+		}
+		cout << endl;
+	}*/
+}
+	
 
 int main(int argc, char **argv)
 {
 	char* head = argv[1]; // name of dataset
-	// type of second-order proximity:
-	// 1. Jaccard Coefficient; 2. Salton Index; 3. Sorensen Index; 
+	// type of 2nd-order proximity: 1. Jaccard Coefficient; 2. Salton Index; 3. Sorensen Index; 
 	// 4. Hub Promoted Index; 5. Hub Depressed Index; 6. Leicht-Holme-Newman Index
-	//int TypeProx = atoi(argv[2]);
+	int TypeProx = atoi(argv[2]);
+	float stepsize = atof(argv[3]);
+	int maxiter = atoi(argv[4]);
+	float delta = atof(argv[5]);
+	
 	Graph mygraph(head); // initialize an object
-	struct timeval tod1, tod2, tod3, tod4, tod5, tod6; // record time
+	struct timeval tod1, tod2; // record time
 	
 // Phase: Loading data
 	cout << "========= " << "Load graph: " << head << " ================== "<< endl;
@@ -1027,40 +1318,46 @@ int main(int argc, char **argv)
 	cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
 	cout << endl;
 
-// Tools: Calculate second-order proximity and correlation between common clusters of node pairs
+//Tools: Calculate second-order proximity and correlation between common clusters of node pairs
 	// 1. Jaccard Coefficient; 2. Salton Index; 3. Sorensen Index; 
 	// 4. Hub Promoted Index; 5. Hub Depressed Index; 6. Leicht-Holme-Newman Index
-	/*cout << "========= " << "Calculate Correlation" << " ================== "<< endl;
-	gettimeofday(&tod3, NULL);
+	cout << "========= " << "Calculate 2nd proximity" << " ================== "<< endl;
+	gettimeofday(&tod1, NULL);
 	mygraph.CalSecOrdProx(TypeProx); //CalSecOrdProx(int type)
 	//mygraph.CalCorrelation();
 	//mygraph.OutputCorrelation();
-	gettimeofday(&tod4, NULL);
-	cout << "========= " << "Time cost: " << todiff(&tod4, &tod3) / 1000000.0 << "s" << " =========" << endl;*/
+	gettimeofday(&tod2, NULL);
+	cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
+	cout << endl;
 		
 // Tools: SIMGT
-	SIMGT mysimgt;
-	mysimgt.IniMemb1(mygraph);
+	cout << "========= " << "Node clustering by SIMGT." << "================== " << endl;
+	SIMGT mysimgt(stepsize, maxiter, delta);
+	gettimeofday(&tod1, NULL);
+	mysimgt.performSIMGT(mygraph);
+	gettimeofday(&tod2, NULL);
+	cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
+	cout << endl;
 	
-// Tools: Performance Test on nodes clustering
-	/*cout << "========= " << "Performance test on nodes clustering." << "================== "<< endl;
+//Tools: Performance Test on nodes clustering
+	cout << "========= " << "Performance test on nodes clustering." << "================== "<< endl;
 	ClusterTest mytest;
-	gettimeofday(&tod5, NULL);
+	gettimeofday(&tod1, NULL);
 	// no gt
 	cout << "##### no ground-truth information:" << endl;
-	cout << "Modularity (no overlapping) = " << mytest.CalNonOverlapModul(mygraph.clusters, mygraph.cluster, mygraph.neighbor, mygraph.num_edges) << endl;
-	cout << "Modularity (overlapping) = " << mytest.CalOverlapModul(mygraph.clusters, mygraph.cluster, mygraph.neighbor, mygraph.num_edges) << endl;
-	cout << "Tightness = " << mytest.CalTgt(mygraph.clusters, mygraph.cluster, mygraph.neighbor) << endl;
-	cout << "Adjusted Tightness = " << mytest.CalAdjTgt(mygraph.clusters, mygraph.cluster, mygraph.neighbor) << endl;
+	//cout << "Modularity (no overlapping) = " << mytest.CalNonOverlapModul(mygraph.clusters, mygraph.cluster, mygraph.neighbor, mygraph.num_edges) << endl;
+	cout << "Modularity (overlapping) = " << mytest.CalOverlapModul(mysimgt.MembClus, mysimgt.MembNode, mygraph.neighbor, mygraph.num_edges) << endl;
+	cout << "Tightness = " << mytest.CalTgt(mysimgt.MembClus, mysimgt.MembNode, mygraph.neighbor) << endl;
+	cout << "Adjusted Tightness = " << mytest.CalAdjTgt(mysimgt.MembClus, mysimgt.MembNode, mygraph.neighbor) << endl;
 	cout << endl;
 	// with gt
 	cout << "##### with ground-truth information:" << endl;
-	cout << "AvgF1 = " << mytest.CalAvgF1(mygraph.clusters, mygraph.clusters) << endl;
-	cout << "NMI = " << mytest.CalNMI(mygraph.clusters, mygraph.clusters, mygraph.num_nodes) << endl;
-	cout << "Omega Index = " << mytest.CalOmegaIndex(mygraph.cluster, mygraph.cluster, mygraph.num_nodes) << endl;
-	cout << "ARI = " << mytest.CalARI(mygraph.clusters, mygraph.clusters, mygraph.num_nodes) << endl;
-	gettimeofday(&tod6, NULL);
-	cout << "========= " << "Time cost: " << todiff(&tod6, &tod5) / 1000000.0 << "s" << " =========" << endl;*/
+	cout << "AvgF1 = " << mytest.CalAvgF1(mysimgt.MembClus, mygraph.clusters) << endl;
+	cout << "NMI = " << mytest.CalNMI(mysimgt.MembClus, mygraph.clusters, mygraph.num_nodes) << endl;
+	cout << "Omega Index = " << mytest.CalOmegaIndex(mysimgt.MembNode, mygraph.cluster, mygraph.num_nodes) << endl;
+	cout << "ARI = " << mytest.CalARI(mysimgt.MembClus, mygraph.clusters, mygraph.num_nodes) << endl;
+	gettimeofday(&tod2, NULL);
+	cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
 	
 	return 0;
 }

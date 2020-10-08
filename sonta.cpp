@@ -978,8 +978,8 @@ double ClusterTest::CalARI(int** Our, int** GT, int num_nodes) {
 }
 
 
-// class of SIMGT (Wang, et al. Applied Mathematics and Computation, 2021)
-class SIMGT {
+// class of BIGCLAM (Wang, et al. Applied Mathematics and Computation, 2021)
+class BIGCLAM {
 public:
 	// all nodes' FuzzyMembership vector
 	double** FuzzyMemb;
@@ -1004,7 +1004,7 @@ public:
 	
 public:
 	// constructor (initialization, file name is needed)
-	SIMGT(double sizestep, int maxiter, double delta): SizeStep(sizestep), MaxIter(maxiter), Delta(delta) { }
+	BIGCLAM(double sizestep, int maxiter, double delta): SizeStep(sizestep), MaxIter(maxiter), Delta(delta) { }
 	// randomly initialize FuzzyMemb, TempFuzzyMemb, Grad, also the SizeClus is derived
 	void IniVar(Graph mygraph);
 	// calculate the gradient
@@ -1017,12 +1017,12 @@ public:
 	double CalTempUtl(Graph mygraph);
 	// generate crisp clusters according FuzzyMemb and Delta
 	void GenClus(Graph mygraph);
-	// perform SIMGT
-	void performSIMGT(Graph mygraph);
+	// perform BIGCLAM
+	void performBIGCLAM(Graph mygraph);
 };
 
 // randomly initialize FuzzyMemb, TempFuzzyMemb, Grad; SizeClus is also derived.
-void SIMGT::IniVar(Graph mygraph) {
+void BIGCLAM::IniVar(Graph mygraph) {
 	int i, k;
 	int num_nodes = mygraph.num_nodes;
 	int num_clusters = mygraph.num_clusters;
@@ -1072,7 +1072,7 @@ void SIMGT::IniVar(Graph mygraph) {
 }
 
 // calculate the gradient
-void SIMGT::CalGrad(Graph mygraph) {
+void BIGCLAM::CalGrad(Graph mygraph) {
 	int i, j; // for node index
 	int k, q; // for cluster index
 	double TempValue = 0.0;
@@ -1084,9 +1084,7 @@ void SIMGT::CalGrad(Graph mygraph) {
 			FirTerm = 0.0;
 			for (j = 1; j <= mygraph.neighbor[i][0]; j++) {
 				TempValue = 0.0;
-				for (k = 1; k <= mygraph.num_clusters; k++) { 
-					TempValue += FuzzyMemb[i][k] * FuzzyMemb[mygraph.neighbor[i][j]][k]; 
-				}
+				for (k = 1; k <= mygraph.num_clusters; k++) { TempValue += FuzzyMemb[i][k] * FuzzyMemb[mygraph.neighbor[i][j]][k]; }
 				if (TempValue == 0) { 
 					FirTerm += FuzzyMemb[mygraph.neighbor[i][j]][q] / pow(10, -7); 
 				} else {
@@ -1095,9 +1093,7 @@ void SIMGT::CalGrad(Graph mygraph) {
 			}
 			TempValue = 0.0;
 			SecTerm = 0.0;
-			for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
-				TempValue += FuzzyMemb[mygraph.neighbor[i][j]][q]; 
-			}
+			for (j = 1; j <= mygraph.neighbor[i][0]; j++) { TempValue += FuzzyMemb[mygraph.neighbor[i][j]][q]; }
 			SecTerm = SizeClus[q] - FuzzyMemb[i][q] - TempValue;
 			Grad[i][q] = FirTerm - SecTerm;
 		}
@@ -1107,7 +1103,7 @@ void SIMGT::CalGrad(Graph mygraph) {
 }
 
 // calculate the TempFuzzyMemb
-void SIMGT::CalTempFuzzyMemb(Graph mygraph) {
+void BIGCLAM::CalTempFuzzyMemb(Graph mygraph) {
 	int i, k;
 	double TempValue = 0.0;
 	for (i = 1; i <= mygraph.num_nodes; i++) {
@@ -1128,36 +1124,35 @@ void SIMGT::CalTempFuzzyMemb(Graph mygraph) {
 }
 
 // calculate total utility
-double SIMGT::CalUtl(Graph mygraph) {
+double BIGCLAM::CalUtl(Graph mygraph) {
+	int num_nodes = mygraph.num_nodes;
+	int num_clusters = mygraph.num_clusters;
+	int** neighbor = mygraph.neighbor;
 	int i, j; // for node index
 	int k; // for cluster index
 	double TempValue = 0.0;
 	double FirTerm = 0.0;
 	double SecTerm = 0.0;
 	double TotalUtl = 0.0;
-	double* TempVec = new double[mygraph.num_clusters + 1];
-	TempVec[0] = mygraph.num_clusters;
-	for (i = 1; i <= mygraph.num_nodes; i++) {
+	double* TempVec = new double[num_clusters + 1];
+	TempVec[0] = num_clusters;
+	for (i = 1; i <= num_nodes; i++) {
 		FirTerm = 0.0;
-		for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
+		for (j = 1; j <= neighbor[i][0]; j++) { 
 			TempValue = 0.0;
-			for (k = 1; k <= mygraph.num_clusters; k++) { 
-				TempValue += FuzzyMemb[i][k] * FuzzyMemb[mygraph.neighbor[i][j]][k]; 
-			}
+			for (k = 1; k <= num_clusters; k++) { TempValue += FuzzyMemb[i][k] * FuzzyMemb[neighbor[i][j]][k]; }
 			FirTerm += log(1 - exp(-TempValue));
 		}
 		SecTerm = 0.0;
-		for (k = 1; k <= mygraph.num_clusters; k++) {
-			for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
-				TempValue += FuzzyMemb[mygraph.neighbor[i][j]][k]; 
-			}
+		for (k = 1; k <= num_clusters; k++) {
+			for (j = 1; j <= neighbor[i][0]; j++) { TempValue += FuzzyMemb[neighbor[i][j]][k]; }
 			TempVec[k] = SizeClus[k] - FuzzyMemb[i][k] - TempValue;
 			SecTerm += FuzzyMemb[i][k] * TempVec[k];
 		}
 		//cout << FirTerm << " ";
 		//cout << SecTerm << endl;
 		TotalUtl += FirTerm - SecTerm;
-		printf("\r#Utility Calculation Completed Progress: %.2lf%%(%d)", i / double(mygraph.num_nodes) * 100, i);
+		printf("\r#Utility Calculation Completed Progress: %.2lf%%(%d)", i / double(num_nodes) * 100, i);
 		fflush(stdout);
 	}
 	cout << endl;
@@ -1166,44 +1161,46 @@ double SIMGT::CalUtl(Graph mygraph) {
 }
 
 // calculate temporal total utility
-double SIMGT::CalTempUtl(Graph mygraph) {
+double BIGCLAM::CalTempUtl(Graph mygraph) {
+	int num_nodes = mygraph.num_nodes;
+	int num_clusters = mygraph.num_clusters;
+	int** neighbor = mygraph.neighbor;
 	int i, j; // for node index
 	int k; // for cluster index
 	double TempValue = 0.0;
 	double FirTerm = 0.0;
 	double SecTerm = 0.0;
 	double newTotalUtl = 0.0;
-	double* TempVec = new double[mygraph.num_clusters + 1];
-	TempVec[0] = mygraph.num_clusters;
-	for (i = 1; i <= mygraph.num_nodes; i++) {
+	double* TempVec = new double[num_clusters + 1];
+	TempVec[0] = num_clusters;
+	for (i = 1; i <= num_nodes; i++) {
 		FirTerm = 0.0;
-		for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
+		for (j = 1; j <= neighbor[i][0]; j++) { 
 			TempValue = 0.0;
-			for (k = 1; k <= mygraph.num_clusters; k++) { 
-				TempValue += TempFuzzyMemb[i][k] * TempFuzzyMemb[mygraph.neighbor[i][j]][k]; 
-			}
+			for (k = 1; k <= num_clusters; k++) { TempValue += TempFuzzyMemb[i][k] * TempFuzzyMemb[neighbor[i][j]][k]; }
 			FirTerm += log(1 - exp(-TempValue));
 		}
 		SecTerm = 0.0;
-		for (k = 1; k <= mygraph.num_clusters; k++) { 
-			for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
-				TempValue += TempFuzzyMemb[mygraph.neighbor[i][j]][k];
-			}
+		for (k = 1; k <= num_clusters; k++) { 
+			for (j = 1; j <= neighbor[i][0]; j++) { TempValue += TempFuzzyMemb[neighbor[i][j]][k]; }
 			TempVec[k] = SizeClus[k] - TempFuzzyMemb[i][k] - TempValue;
 			SecTerm += TempFuzzyMemb[i][k] * TempVec[k];
 		}
 		//cout << FirTerm << " ";
 		//cout << SecTerm << endl;
 		newTotalUtl += FirTerm - SecTerm;
-		//printf("\r#CalUtl: %.2lf%%(%d)", i / double(mygraph.num_nodes) * 100, i);
+		//printf("\r#CalUtl: %.2lf%%(%d)", i / double(num_nodes) * 100, i);
 		fflush(stdout);
 	}
 	return newTotalUtl;
 }
 
 // generate cluster
-void SIMGT::GenClus(Graph mygraph) {
-	int temp, i, k, c;
+void BIGCLAM::GenClus(Graph mygraph) {
+	int temp = 0;
+	int i = 0;
+	int k = 0;
+	int c = 0;
 	for (i = 1; i <= mygraph.num_nodes; i++) {
 		temp = 0;
 		// determine the space size for space allocation
@@ -1241,8 +1238,8 @@ void SIMGT::GenClus(Graph mygraph) {
 	}
 }	
 
-// perform SIMGT
-void SIMGT::performSIMGT(Graph mygraph) {
+// perform BIGCLAM
+void BIGCLAM::performBIGCLAM(Graph mygraph) {
 	int i, k;
 	IniVar(mygraph);
 	double oldUtl = 0.0;
@@ -1262,7 +1259,7 @@ void SIMGT::performSIMGT(Graph mygraph) {
 		CalTempFuzzyMemb(mygraph);
 		newUtl = CalTempUtl(mygraph);
 		cout << "newUtl: " << newUtl << endl;
-		change = abs((newUtl - oldUtl) / oldUtl);
+		change = abs((newUtl - oldUtl) / oldUtl); 
 		
 		iter++;
 	}
@@ -1330,11 +1327,11 @@ int main(int argc, char **argv)
 	cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
 	cout << endl;
 		
-// Tools: SIMGT
-	cout << "========= " << "Node clustering by SIMGT." << "================== " << endl;
-	SIMGT mysimgt(stepsize, maxiter, delta);
+// Tools: BIGCLAM
+	cout << "========= " << "Node clustering by BIGCLAM." << "================== " << endl;
+	BIGCLAM myBIGCLAM(stepsize, maxiter, delta);
 	gettimeofday(&tod1, NULL);
-	mysimgt.performSIMGT(mygraph);
+	myBIGCLAM.performBIGCLAM(mygraph);
 	gettimeofday(&tod2, NULL);
 	cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
 	cout << endl;
@@ -1346,16 +1343,16 @@ int main(int argc, char **argv)
 	// no gt
 	cout << "##### no ground-truth information:" << endl;
 	//cout << "Modularity (no overlapping) = " << mytest.CalNonOverlapModul(mygraph.clusters, mygraph.cluster, mygraph.neighbor, mygraph.num_edges) << endl;
-	cout << "Modularity (overlapping) = " << mytest.CalOverlapModul(mysimgt.MembClus, mysimgt.MembNode, mygraph.neighbor, mygraph.num_edges) << endl;
-	cout << "Tightness = " << mytest.CalTgt(mysimgt.MembClus, mysimgt.MembNode, mygraph.neighbor) << endl;
-	cout << "Adjusted Tightness = " << mytest.CalAdjTgt(mysimgt.MembClus, mysimgt.MembNode, mygraph.neighbor) << endl;
+	cout << "Modularity (overlapping) = " << mytest.CalOverlapModul(myBIGCLAM.MembClus, myBIGCLAM.MembNode, mygraph.neighbor, mygraph.num_edges) << endl;
+	cout << "Tightness = " << mytest.CalTgt(myBIGCLAM.MembClus, myBIGCLAM.MembNode, mygraph.neighbor) << endl;
+	cout << "Adjusted Tightness = " << mytest.CalAdjTgt(myBIGCLAM.MembClus, myBIGCLAM.MembNode, mygraph.neighbor) << endl;
 	cout << endl;
 	// with gt
 	cout << "##### with ground-truth information:" << endl;
-	cout << "AvgF1 = " << mytest.CalAvgF1(mysimgt.MembClus, mygraph.clusters) << endl;
-	cout << "NMI = " << mytest.CalNMI(mysimgt.MembClus, mygraph.clusters, mygraph.num_nodes) << endl;
-	cout << "Omega Index = " << mytest.CalOmegaIndex(mysimgt.MembNode, mygraph.cluster, mygraph.num_nodes) << endl;
-	cout << "ARI = " << mytest.CalARI(mysimgt.MembClus, mygraph.clusters, mygraph.num_nodes) << endl;
+	cout << "AvgF1 = " << mytest.CalAvgF1(myBIGCLAM.MembClus, mygraph.clusters) << endl;
+	cout << "NMI = " << mytest.CalNMI(myBIGCLAM.MembClus, mygraph.clusters, mygraph.num_nodes) << endl;
+	cout << "Omega Index = " << mytest.CalOmegaIndex(myBIGCLAM.MembNode, mygraph.cluster, mygraph.num_nodes) << endl;
+	cout << "ARI = " << mytest.CalARI(myBIGCLAM.MembClus, mygraph.clusters, mygraph.num_nodes) << endl;
 	gettimeofday(&tod2, NULL);
 	cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
 	

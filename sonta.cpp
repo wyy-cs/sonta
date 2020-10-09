@@ -23,12 +23,44 @@
 
 using namespace std;
 
+// malloc space for a one-dimensional array
+template<typename Type>
+void MalSpcForOneDimArray(Type*& OneDimArray, int LenDim) {
+  OneDimArray = new Type[LenDim + 1];
+  OneDimArray[0] = LenDim;
+}
+// malloc space for a two-dimensional array, the length of first/second-dimension is known.
+template<typename Type>
+void MalSpcForTwoDimArray(Type**& TwoDimArray, int LenFirDim, int LenSecDim) {
+  TwoDimArray = new Type*[LenFirDim + 1];
+  TwoDimArray[0] = new Type[1];
+  TwoDimArray[0][0] = LenFirDim;
+  for (int i = 1; i <= LenFirDim; i++) { MalSpcForOneDimArray(TwoDimArray[i], LenSecDim); }
+}
+// malloc space for a two-dimensional array, where the length of second-dimension is unknown.
+template<typename Type>
+void MalSpcForTwoDimArray(Type**& TwoDimArray, int LenFirDim) {
+  TwoDimArray = new Type*[LenFirDim + 1];
+  TwoDimArray[0] = new Type[1];
+  TwoDimArray[0][0] = LenFirDim;
+}
+// malloc space for a three-dimensional array
+template<typename Type>
+void MalSpcForThrDimArray(Type***& ThrDimArray, int LenFirDim, int LenSecDim, int LenThrDim) { 
+  ThrDimArray = new Type**[LenFirDim + 1];
+  ThrDimArray[0] = new Type[1];
+  ThrDimArray[0][0] = LenFirDim;
+  for (int i = 1; i <= LenFirDim; i++) { MalSpcForTwoDimArray(ThrDimArray[i], LenSecDim, LenThrDim); }
+}
+
 // generate a random vector whose summation of all elements equals 1.
 double* randArrSumOne(int NumEntry) {
   //NumEntry is the number of elements
   srand((unsigned)time(0) * rand());
-  double* Array = new double[NumEntry + 1];
-  Array[0] = NumEntry;
+  //double* Array = new double[NumEntry + 1];
+  //Array[0] = NumEntry;
+  double* Array;
+  MalSpcForOneDimArray(Array, NumEntry);
   double SumEntry = 0.0;
   int i, TempRand;
   for (i = 1; i <= NumEntry; i++) {
@@ -209,28 +241,20 @@ void Graph::ReadPureDirGraph() {
     cout << "There is no graph topology (.graph) file, please check it!!!" << endl;
     exit(0);
   }
-  
   fin1.open(graphfile);
   while(getline(fin1,szLine)) { i++; }
   fin1.close();
   fin1.clear();
   num_nodes = i;
-  
-  neighbor = new int*[num_nodes + 1];
-  neighbor[0] = new int[1];
-  // do not ignore it !!! otherwise, "core dumped" happens when free memory space.
-  neighbor[0][0] = num_nodes;
-  
+  MalSpcForTwoDimArray(neighbor, num_nodes); 
   num_edges = 0;
-  i = 1;
-  
+  i = 1; 
   fin1.open(graphfile);
   while(getline (fin1,szLine)) {
     vector<string> tData;
     istringstream iss(szLine);
     copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<vector<string> >(tData));
-    neighbor[i] = new int[tData.size() + 1];
-    neighbor[i][0] = tData.size();
+    MalSpcForOneDimArray(neighbor[i], tData.size());
     j = 1;
     set<int> tempset;
     set<int>::iterator it_set;
@@ -290,13 +314,8 @@ void Graph::ReadNodeFeature() {
   len_fea_nodes = maxFeaId;
   cout << "Length of node features: " << len_fea_nodes << endl;
   
-  fea_nodes = new double*[num_nodes + 1];
-  fea_nodes[0] = new double[1];
-  // do not ignore it !!! otherwise, "core dumped" happens when free memory space.
-  fea_nodes[0][0] = num_nodes;
+  MalSpcForTwoDimArray(fea_nodes, num_nodes, len_fea_nodes);
   for (i = 1; i <= num_nodes; i++) {
-    fea_nodes[i] = new double[len_fea_nodes + 1];
-    fea_nodes[i][0] = len_fea_nodes;
     for (j = 1; j <= len_fea_nodes; j++) { fea_nodes[i][j] = 0.0; }
   }
   
@@ -360,14 +379,10 @@ void Graph::CalSecOrdProx(int type) {
   int i = 1;
   int j = 1;
   int k = 1;
-  proximity = new double*[num_nodes + 1];
-  proximity[0] = new double[1];
-  // do not ignore it !!! otherwise, "core dumped" happens when free memory space.
-  proximity[0][0] = num_nodes;
+  MalSpcForTwoDimArray(proximity, num_nodes);
   
   for (i = 1; i <= num_nodes; i++) {
-    proximity[i] = new double[num_nodes - i + 1];
-    proximity[i][0] = num_nodes - i;
+	MalSpcForOneDimArray(proximity[i], num_nodes - i);
     for (j = i+1; j <= num_nodes; j++) {
       // double Graph::NeighborBasedSimilarity(int* Node_1, int* Node_2, int type)
       proximity[i][j-i] = NeighborBasedSimilarity(neighbor[i], neighbor[j], TypeTopolSimil);
@@ -405,17 +420,12 @@ void Graph::ReadGTclusters() {
   num_clusters = i;
   cout << "Number of clusters: " << num_clusters << endl;
   
-  clusters = new int*[num_clusters + 1];
-  clusters[0] = new int[1];
-  // do not ignore it !!! otherwise, "core dumped" happens when free memory space.
-  clusters[0][0] = num_clusters;
+  MalSpcForTwoDimArray(clusters, num_clusters);
   
   // store the cluster information, each array of corresponding node has num_clusters elements,
   // the corresponding value is 1 if this node belongs to the corresponding cluster
-  int** state = new int*[num_nodes + 1];
-  state[0] = new int[1]; 
-  // do not ignore it !!! otherwise, "core dumped" happens when free memory space.
-  state[0][0] = num_nodes;
+  int** state;
+  MalSpcForTwoDimArray(state, num_nodes);
   
   for (i = 1; i <= num_nodes; i++) {
     state[i] = new int[num_clusters + 1];
@@ -433,8 +443,7 @@ void Graph::ReadGTclusters() {
       tempset.insert(atoi((*iter).c_str()));
     }
     int tempK = tempset.size();
-    clusters[p] = new int[tempK + 1];
-    clusters[p][0] = tempK;
+	MalSpcForOneDimArray(clusters[p], tempK);
     j=1;
     for (it_set=tempset.begin(); it_set != tempset.end(); it_set++) {
       clusters[p][j] = *it_set;
@@ -444,17 +453,11 @@ void Graph::ReadGTclusters() {
     p++;
     tempset.clear();
   }
-  
-  cluster = new int*[num_nodes + 1];
-  cluster[0] = new int[1]; 
-  // do not ignore it !!! otherwise, "core dumped" happens when free memory space.
-  cluster[0][0] = num_nodes;
-  
+  MalSpcForTwoDimArray(cluster, num_nodes); 
   for (i = 1; i <= num_nodes; i++) {
     temp = 0;
     for (j = 1; j <= num_clusters; j++) { temp += state[i][j]; }
-    cluster[i] = new int[temp + 1];
-    cluster[i][0] = temp;
+	MalSpcForOneDimArray(cluster[i], temp);
     q = 1;
     for (j = 1; j <= num_clusters; j++) {
       if (state[i][j]!=0) {
@@ -463,7 +466,6 @@ void Graph::ReadGTclusters() {
       }
     }
   }
-  
   // free memory space
   // state
   for(j = 0; j <= num_nodes; j++) { delete []state[j]; }
@@ -473,15 +475,9 @@ void Graph::ReadGTclusters() {
 void Graph::CalculateNumCommCommu() {
   int i = 1;
   int j = 1;
-  
-  NumCommCommu = new int*[num_nodes + 1];
-  NumCommCommu[0] = new int[1]; 
-  //do not ignore it !!! otherwise, "core dumped" happens when free memory space.
-  NumCommCommu[0][0] = num_nodes;
-  
+  MalSpcForTwoDimArray(NumCommCommu, num_nodes);
   for (i = 1; i <= num_nodes; i++) {
-    NumCommCommu[i] = new int[num_nodes - i + 1];
-    NumCommCommu[i][0] = num_nodes - i;
+	MalSpcForOneDimArray(NumCommCommu[i], num_nodes - i);
     for (j = i+1; j <= num_nodes; j++) {
       NumCommCommu[i][j-i] = NumIntersection(cluster[i], cluster[j]);
     }
@@ -496,16 +492,13 @@ void Graph::CalCorrelation() {
   int i = 1;
   int j = 1;
   correlation = new double[num_clusters + 1];
-  correlation[0] = 0.0;
   
   // store the number of node pairs of specific number of common clusters, 
   // for subsequent calculation of average
-  int* NumNodePairs;
-  NumNodePairs = new int[num_clusters + 1];
-  NumNodePairs[0] = num_clusters;  
+  int* NumNodePairs = new int[num_clusters + 1];  
   // initialization
   for (i = 0; i <= num_clusters; i++) {
-    correlation[i] = 0;
+    correlation[i] = 0.0;
     NumNodePairs[i] = 0; 
   }  
   // summation
@@ -629,8 +622,8 @@ double ClusterTest::CalNonOverlapModul(int** Our1, int** Our2, int** neighbor, i
   // number of all nodes in the graph
   int num_nodes = neighbor[0][0];
   
-  double* theta = new double[Our1[0][0] + 1];
-  theta[0] = Our1[0][0];
+  double* theta;
+  MalSpcForOneDimArray(theta, Our1[0][0]);
   for (k = 1; k <= theta[0]; k++) {
     theta[k] = 0;
     for (i = 1; i <= Our1[k][0]; i++) { theta[k] += neighbor[Our1[k][i]][0]; }
@@ -638,8 +631,8 @@ double ClusterTest::CalNonOverlapModul(int** Our1, int** Our2, int** neighbor, i
   }
   
   // modularity of single node
-  double* singleModul = new double[num_nodes + 1];
-  singleModul[0] = num_nodes;
+  double* singleModul;
+  MalSpcForOneDimArray(singleModul, num_nodes);
   double tempValue = 0.0;
   double SumModul = 0.0;
   for (i = 1; i <= num_nodes; i++) {
@@ -667,12 +660,11 @@ double ClusterTest::CalOverlapModul(int** Our1, int** Our2, int** neighbor, int 
   int k = 0;
   int id_i, id_j;
   int num_clusters = Our1[0][0];
-  double* singleModul = new double[num_clusters + 1];
-  singleModul[0] = num_clusters;
+  double* singleModul;
+  MalSpcForOneDimArray(singleModul, num_clusters);
   double SumModul = 0.0;
   
   for (k = 1; k <= num_clusters; k++) {
-    //cout << k << ": for test!!!" << endl;
     if (Our1[k][0] < 2) { singleModul[k] = 0.0; continue; }
     singleModul[k] = 0.0;
     for (i = 1; i < Our1[k][0]; i++) {
@@ -707,12 +699,12 @@ double ClusterTest::CalTgt(int** Our1, int** Our2, int** neighbor) {
   int num_nodes = neighbor[0][0];
   double SumTgt = 0.0;
   
-  double* SinglTgt = new double[num_clusters + 1];
-  SinglTgt[0] = num_clusters;
-  int* numInEdges = new int[num_clusters + 1];
-  numInEdges[0] = num_clusters;
-  int* numOutEdges = new int[num_clusters + 1];
-  numOutEdges[0] = num_clusters;
+  double* SinglTgt;
+  MalSpcForOneDimArray(SinglTgt, num_clusters);
+  int* numInEdges;
+  MalSpcForOneDimArray(numInEdges, num_clusters);
+  int* numOutEdges;
+  MalSpcForOneDimArray(numOutEdges, num_clusters);
   
   // a cluster k
   for (k = 1; k <= num_clusters; k++) {
@@ -765,13 +757,13 @@ double ClusterTest::CalAdjTgt(int** Our1, int** Our2, int** neighbor) {
   int num_clusters = Our1[0][0];
   int num_nodes = neighbor[0][0];
   double SumTgt = 0.0;
-  
-  double* SinglTgt = new double[num_clusters + 1];
-  SinglTgt[0] = num_clusters;
-  int* numInEdges = new int[num_clusters + 1];
-  numInEdges[0] = num_clusters;
-  int* numOutEdges = new int[num_clusters + 1];
-  numOutEdges[0] = num_clusters;
+
+  double* SinglTgt;
+  MalSpcForOneDimArray(SinglTgt, num_clusters);
+  int* numInEdges;
+  MalSpcForOneDimArray(numInEdges, num_clusters);
+  int* numOutEdges;
+  MalSpcForOneDimArray(numOutEdges, num_clusters);
   
   // a cluster k
   for (k = 1; k <= num_clusters; k++) {
@@ -847,10 +839,10 @@ double ClusterTest::CalculateMaxF1(int* A, int** targetset) {
 double ClusterTest::CalAvgF1(int** Our, int** GT) {
   int K_1 = Our[0][0];
   int K_2 = GT[0][0];
-  double* MaxF1_1 = new double[K_1 + 1];
-  MaxF1_1[0] = (double)K_1;
-  double* MaxF1_2 = new double[K_2 + 1];
-  MaxF1_2[0] = (double)K_2;
+  double* MaxF1_1;
+  MalSpcForOneDimArray(MaxF1_1, K_1);
+  double* MaxF1_2;
+  MalSpcForOneDimArray(MaxF1_2, K_2);
   int p = 0;
   int q = 0;
   double sumMAXF1_1 = 0.0;
@@ -864,7 +856,7 @@ double ClusterTest::CalAvgF1(int** Our, int** GT) {
     MaxF1_2[q] = CalculateMaxF1(GT[q], Our);
     sumMAXF1_2 += MaxF1_2[q];
   }  
-  double AvgF1 = sumMAXF1_1 / 2 / K_1 + sumMAXF1_2 / 2 / K_2;
+  double AvgF1 = sumMAXF1_1 / 2.0 / K_1 + sumMAXF1_2 / 2.0 / K_2;
   return AvgF1;
 }
 
@@ -876,11 +868,8 @@ double ClusterTest::CalNMI(int** Our, int** GT, int num_nodes) {
   int i = 1;
   int j = 1;
   
-  double** number_joint = new double*[size_a + 1];
-  number_joint[0] = new double[1]; 
-  // do not ignore it !!! otherwise, "core dumped" happens when free memory space.
-  number_joint[0][0] = (double)size_a;
-  
+  double** number_joint;
+  MalSpcForTwoDimArray(number_joint, size_a);
   for (i = 1; i <= size_a; i++) {
     number_joint[i] = new double[size_b + 1];
     for (j = 1; j <= size_b; j++) {
@@ -980,7 +969,7 @@ double ClusterTest::CalARI(int** Our, int** GT, int num_nodes) {
 
 // class of BIGCLAM (Jaewon Yang, Jure Leskovec. WSDM2013)
 class BIGCLAM {
-public:
+private:
   // all nodes' FuzzyMembership vector
   double** FuzzyMemb;
   // cluster size
@@ -995,12 +984,14 @@ public:
   double TotalLikelihood;
   // Delta for determine the FuzzyMembership according to FuzzyMemb
   double Delta;
+  // maximum number of iteration
+  int MaxIter;
+  
+public:
   // Memb in clusters (similar with mygraph.clusters)
   int** MembClus;
   // Memb in nodes (similar with mygraph.cluster)
   int** MembNode;
-  // maximum number of iteration
-  int MaxIter;
   
 public:
   // constructor (initialization, file name is needed)
@@ -1024,49 +1015,34 @@ public:
 // randomly initialize FuzzyMemb, TempFuzzyMemb, Grad; SizeClus is also derived.
 void BIGCLAM::IniVar(Graph mygraph) {
   int i, k;
-  FuzzyMemb = new double*[mygraph.num_nodes + 1];
-  FuzzyMemb[0] = new double[1];
-  FuzzyMemb[0][0] = mygraph.num_nodes;
+  MalSpcForTwoDimArray(FuzzyMemb, mygraph.num_nodes);
   for (int i = 1; i <= mygraph.num_nodes; i++) {
     FuzzyMemb[i] = new double[mygraph.num_clusters + 1];
     FuzzyMemb[i] = randArrSumOne(mygraph.num_clusters);
   }
   // derive the size of each clusters
-  SizeClus = new double[mygraph.num_clusters + 1];
-  SizeClus[0] = mygraph.num_clusters;
+  MalSpcForOneDimArray(SizeClus, mygraph.num_clusters);
   for (k = 1; k <= mygraph.num_clusters; k++) {
     SizeClus[k] = 0.0;
     for (i = 1; i <= mygraph.num_nodes; i++) { SizeClus[k] += FuzzyMemb[i][k]; }
   }
   // initialize TempFuzzyMemb, begin by making same with FuzzyMemb
   // space must be allocated and cannot be directly assigned as a whole part
-  TempFuzzyMemb =  new double*[mygraph.num_nodes + 1];
-  TempFuzzyMemb[0] = new double[1];
-  TempFuzzyMemb[0][0] = mygraph.num_nodes;
+  MalSpcForTwoDimArray(TempFuzzyMemb, mygraph.num_nodes, mygraph.num_clusters);
   for (i = 1; i <= mygraph.num_nodes; i++) {
-    TempFuzzyMemb[i] = new double[mygraph.num_clusters + 1];
-    TempFuzzyMemb[i][0] = mygraph.num_clusters;
     for (k = 1; k <= mygraph.num_clusters; k++) { TempFuzzyMemb[i][k] = FuzzyMemb[i][k]; }
   }
   // initialize the Grad
-  Grad =  new double*[mygraph.num_nodes + 1];
-  Grad[0] = new double[1];
-  Grad[0][0] = mygraph.num_nodes;
+  MalSpcForTwoDimArray(Grad, mygraph.num_nodes, mygraph.num_clusters);
   for (i = 1; i <= mygraph.num_nodes; i++) {
-    Grad[i] = new double[mygraph.num_clusters + 1];
-    Grad[i][0] = mygraph.num_clusters;
     for (k = 1; k <= mygraph.num_clusters; k++) { Grad[i][k] = 0.0; }
   }
   // initialize Delta
   // Delta = sqrt(-log(1-pow(10,-8)));
   // allocate space for MembClus
-  MembClus = new int*[mygraph.num_clusters + 1];
-  MembClus[0] = new int[1];
-  MembClus[0][0] = mygraph.num_clusters;
+  MalSpcForTwoDimArray(MembClus, mygraph.num_clusters);
   // allocate space for MembNode
-  MembNode = new int*[mygraph.num_nodes + 1];
-  MembNode[0] = new int[1];
-  MembNode[0][0] = mygraph.num_nodes;
+  MalSpcForTwoDimArray(MembNode, mygraph.num_nodes);
 }
 
 // calculate the gradient
@@ -1082,7 +1058,9 @@ void BIGCLAM::CalGrad(Graph mygraph) {
       FirTerm = 0.0;
       for (j = 1; j <= mygraph.neighbor[i][0]; j++) {
         TempValue = 0.0;
-        for (k = 1; k <= mygraph.num_clusters; k++) { TempValue += FuzzyMemb[i][k] * FuzzyMemb[mygraph.neighbor[i][j]][k]; }
+        for (k = 1; k <= mygraph.num_clusters; k++) { 
+          TempValue += FuzzyMemb[i][k] * FuzzyMemb[mygraph.neighbor[i][j]][k]; 
+        }
         if (TempValue == 0) { 
           FirTerm += FuzzyMemb[mygraph.neighbor[i][j]][q] / pow(10, -7); 
         } else {
@@ -1091,7 +1069,9 @@ void BIGCLAM::CalGrad(Graph mygraph) {
       }
       TempValue = 0.0;
       SecTerm = 0.0;
-      for (j = 1; j <= mygraph.neighbor[i][0]; j++) { TempValue += FuzzyMemb[mygraph.neighbor[i][j]][q]; }
+      for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
+      TempValue += FuzzyMemb[mygraph.neighbor[i][j]][q]; 
+    }
       SecTerm = SizeClus[q] - FuzzyMemb[i][q] - TempValue;
       Grad[i][q] = FirTerm - SecTerm;
     }
@@ -1129,22 +1109,22 @@ double BIGCLAM::CalLikelihood(Graph mygraph) {
   double FirTerm = 0.0;
   double SecTerm = 0.0;
   double TotalLikelihood = 0.0;
-  double* TempVec = new double[mygraph.num_clusters + 1];
-  TempVec[0] = mygraph.num_clusters;
+  double* TempVec;
+  MalSpcForOneDimArray(TempVec, mygraph.num_clusters);
   for (i = 1; i <= mygraph.num_nodes; i++) {
     FirTerm = 0.0;
     for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
       TempValue = 0.0;
       for (k = 1; k <= mygraph.num_clusters; k++) { 
-	    TempValue += FuzzyMemb[i][k] * FuzzyMemb[mygraph.neighbor[i][j]][k]; 
-	  }
+      TempValue += FuzzyMemb[i][k] * FuzzyMemb[mygraph.neighbor[i][j]][k]; 
+    }
       FirTerm += log(1 - exp(-TempValue));
     }
     SecTerm = 0.0;
     for (k = 1; k <= mygraph.num_clusters; k++) {
       for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
-	    TempValue += FuzzyMemb[mygraph.neighbor[i][j]][k]; 
-	  }
+      TempValue += FuzzyMemb[mygraph.neighbor[i][j]][k]; 
+    }
       TempVec[k] = SizeClus[k] - FuzzyMemb[i][k] - TempValue;
       SecTerm += FuzzyMemb[i][k] * TempVec[k];
     }
@@ -1167,22 +1147,22 @@ double BIGCLAM::CalTempLikelihood(Graph mygraph) {
   double FirTerm = 0.0;
   double SecTerm = 0.0;
   double newTotalLikelihood = 0.0;
-  double* TempVec = new double[mygraph.num_clusters + 1];
-  TempVec[0] = mygraph.num_clusters;
+  double* TempVec;
+  MalSpcForOneDimArray(TempVec, mygraph.num_clusters);
   for (i = 1; i <= mygraph.num_nodes; i++) {
     FirTerm = 0.0;
     for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
       TempValue = 0.0;
       for (k = 1; k <= mygraph.num_clusters; k++) { 
-	    TempValue += TempFuzzyMemb[i][k] * TempFuzzyMemb[mygraph.neighbor[i][j]][k];
-	  }
+      TempValue += TempFuzzyMemb[i][k] * TempFuzzyMemb[mygraph.neighbor[i][j]][k];
+    }
       FirTerm += log(1 - exp(-TempValue));
     }
     SecTerm = 0.0;
     for (k = 1; k <= mygraph.num_clusters; k++) { 
       for (j = 1; j <= mygraph.neighbor[i][0]; j++) {
-	    TempValue += TempFuzzyMemb[mygraph.neighbor[i][j]][k]; 
-	  }
+      TempValue += TempFuzzyMemb[mygraph.neighbor[i][j]][k]; 
+    }
       TempVec[k] = SizeClus[k] - TempFuzzyMemb[i][k] - TempValue;
       SecTerm += TempFuzzyMemb[i][k] * TempVec[k];
     }
@@ -1206,8 +1186,7 @@ void BIGCLAM::GenClus(Graph mygraph) {
       if (FuzzyMemb[i][k] > Delta) { temp++; }
     }
     // allocate space
-    MembNode[i] = new int[temp + 1];
-    MembNode[i][0] = temp; 
+	MalSpcForOneDimArray(MembNode[i], temp);
     c = 1;
     for (k = 1; k <= mygraph.num_clusters; k++) {
       if (FuzzyMemb[i][k] > Delta) { 
@@ -1224,8 +1203,7 @@ void BIGCLAM::GenClus(Graph mygraph) {
       if (FuzzyMemb[i][k] > Delta) { temp++; }
     }
     // allocate space
-    MembClus[k] = new int[temp + 1];
-    MembClus[k][0] = temp; 
+	MalSpcForOneDimArray(MembClus[k], temp);
     c = 1;
     for (i = 1; i <= mygraph.num_nodes; i++) {
       if (FuzzyMemb[i][k] > Delta) { 
@@ -1353,6 +1331,7 @@ int main(int argc, char **argv)
   cout << "ARI = " << mytest.CalARI(myBIGCLAM.MembClus, mygraph.clusters, mygraph.num_nodes) << endl;
   gettimeofday(&tod2, NULL);
   cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
+  cout << endl;
   
   return 0;
 }

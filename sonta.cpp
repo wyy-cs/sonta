@@ -244,8 +244,6 @@ void Graph::ReadPureDirGraph() {
   ifstream fin1;
   int i = 0;
   int j = 0;
-  int n = 0;
-  int m = 0;
   string szLine;
 
   char* graphtail = (char*)".graph";
@@ -296,9 +294,6 @@ void Graph::ReadNodeFeature() {
   ifstream fin2;
   int i = 0;
   int j = 0;
-  int n = 0;
-  int m = 0;
-  int TGraph = 0;
   string szLine;
   
   char* featuretail = (char*)".nf";
@@ -389,14 +384,10 @@ void Graph::CalSecOrdProx(int type) {
   else if (type == 4) { cout << "Second-order pairroximity: Hub Promoted Index" << endl; }
   else if (type == 5) { cout << "Second-order pairroximity: Hub Depressed Index" << endl; }
   else if (type == 6) { cout << "Second-order pairroximity: Leicht-Holme-Newman Index" << endl; }
-  int i = 1;
-  int j = 1;
-  int k = 1;
   MalSpcForTwoDimArray(proximity, num_nodes);
-  
-  for (i = 1; i <= num_nodes; i++) {
+  for (int i = 1; i <= num_nodes; i++) {
 	MalSpcForOneDimArray(proximity[i], num_nodes - i);
-    for (j = i+1; j <= num_nodes; j++) {
+    for (int j = i+1; j <= num_nodes; j++) {
       // double Graph::NeighborBasedSimilarity(int* Node_1, int* Node_2, int type)
       proximity[i][j-i] = NeighborBasedSimilarity(neighbor[i], neighbor[j], TypeTopolSimil);
     }
@@ -409,42 +400,33 @@ void Graph::CalSecOrdProx(int type) {
 // load real cluster information
 void Graph::ReadGTclusters() {
   ifstream fin;
-  
   char* clustertail = (char*) ".gt";
   char* clusterfile = strcatre(name_dataset, clustertail);
-  
   string szLine;
   int i = 0;
   int j = 0;
   int temp = 0;
   int q = 0;
   set<int>::iterator it_set;
-  
   if (access(clusterfile, R_OK|W_OK) != 0) {
     cout << "There is no cluster (.gt) file!!!" << endl;
     return;
   }
   fin.open(clusterfile);
-  
   while(getline(fin,szLine)) { i++; }
   fin.close();
   fin.clear();
-  
   num_clusters = i;
   cout << "Number of clusters: " << num_clusters << endl;
-  
   MalSpcForTwoDimArray(clusters, num_clusters);
-  
   // store the cluster information, each array of corresponding node has num_clusters elements,
   // the corresponding value is 1 if this node belongs to the corresponding cluster
   int** state;
   MalSpcForTwoDimArray(state, num_nodes);
-  
   for (i = 1; i <= num_nodes; i++) {
     state[i] = new int[num_clusters + 1];
     for (j = 0; j <= num_clusters; j++) { state[i][j] = 0; }
   }
-  
   fin.open(clusterfile);
   int p = 1;
   while(getline (fin,szLine)) {
@@ -482,12 +464,10 @@ void Graph::ReadGTclusters() {
 }
 
 void Graph::CalculateNumCommCommu() {
-  int i = 1;
-  int j = 1;
   MalSpcForTwoDimArray(NumCommCommu, num_nodes);
-  for (i = 1; i <= num_nodes; i++) {
+  for (int i = 1; i <= num_nodes; i++) {
 	MalSpcForOneDimArray(NumCommCommu[i], num_nodes - i);
-    for (j = i+1; j <= num_nodes; j++) {
+    for (int j = i+1; j <= num_nodes; j++) {
       NumCommCommu[i][j-i] = NumIntersection(cluster[i], cluster[j]);
     }
     printf("\r#Common Communities Calculation Completed Progress: %.2lf%%(%d)", i / double(num_nodes) * 100, i);
@@ -500,8 +480,7 @@ void Graph::CalCorrelation() {
   CalculateNumCommCommu();
   int i = 1;
   int j = 1;
-  correlation = new double[num_clusters + 1];
-  
+  correlation = new double[num_clusters + 1]; 
   // store the number of node pairs of specific number of common clusters, 
   // for subsequent calculation of average
   int* NumNodePairs = new int[num_clusters + 1];  

@@ -18,18 +18,18 @@
 #include <set>
 #include <unistd.h>
 #include <pthread.h>
-#include <assert.h>  
-#define FALSE 0
+#include <assert.h>
 
 using namespace std;
 
-// malloc space for a one-dimensional array
+// malloc space for an one-dimensional array/vector.
 template<typename Type>
 void MalSpcForOneDimArray(Type*& OneDimArray, int LenDim) {
   OneDimArray = new Type[LenDim + 1];
   OneDimArray[0] = LenDim;
 }
-// malloc space for a two-dimensional array, the length of first/second-dimension is known.
+
+// malloc space for a two-dimensional array/vector, the length of first/second-dimension is known.
 template<typename Type>
 void MalSpcForTwoDimArray(Type**& TwoDimArray, int LenFirDim, int LenSecDim) {
   TwoDimArray = new Type*[LenFirDim + 1];
@@ -37,14 +37,16 @@ void MalSpcForTwoDimArray(Type**& TwoDimArray, int LenFirDim, int LenSecDim) {
   TwoDimArray[0][0] = LenFirDim;
   for (int i = 1; i <= LenFirDim; i++) { MalSpcForOneDimArray(TwoDimArray[i], LenSecDim); }
 }
-// malloc space for a two-dimensional array, where the length of second-dimension is unknown.
+
+// malloc space for a two-dimensional array/vector, where the length of second-dimension is unknown.
 template<typename Type>
 void MalSpcForTwoDimArray(Type**& TwoDimArray, int LenFirDim) {
   TwoDimArray = new Type*[LenFirDim + 1];
   TwoDimArray[0] = new Type[1];
   TwoDimArray[0][0] = LenFirDim;
 }
-// malloc space for a three-dimensional array
+
+// malloc space for a three-dimensional array/vector
 template<typename Type>
 void MalSpcForThrDimArray(Type***& ThrDimArray, int LenFirDim, int LenSecDim, int LenThrDim) { 
   ThrDimArray = new Type**[LenFirDim + 1];
@@ -53,31 +55,56 @@ void MalSpcForThrDimArray(Type***& ThrDimArray, int LenFirDim, int LenSecDim, in
   for (int i = 1; i <= LenFirDim; i++) { MalSpcForTwoDimArray(ThrDimArray[i], LenSecDim, LenThrDim); }
 }
 
+// whether a value exists in an unordered array/vector. 
+// If it exists, return the index of the first element equal to this value; return 0, otherwise.
+template<typename Type>
+int FindInUnorderedArray(Type* array, Type object) {
+  if (array[0] == 0) { return 0; }
+  for (int i = 1; i <= array[0]; i++) {
+    if (object == array[i]) { return i; }
+  }
+  return 0;
+}
+
+// whether a value exists in an array/vector of ascending ordered members. 
+// binary search
+template<typename Type>
+int FindInAscendOrderedArray(Type* array, Type object) {
+  if (array[0] == 0) { return 0; }
+  int mid;
+  int left = 1;
+  int right = (int)array[0];
+  while (left < right) {
+    mid = (right + left) / 2;
+	if (array[mid] < object) { left = mid + 1; }
+	else { right = mid; }
+  }
+  if (object == array[left]) { return left; }
+  else { return 0; }
+}
+
 // generate a random vector whose summation of all elements equals 1.
-double* randArrSumOne(int NumEntry) {
-  //NumEntry is the number of elements
+double* GenRandArraySumOne(int Len) {
   srand((unsigned)time(0) * rand());
-  //double* Array = new double[NumEntry + 1];
-  //Array[0] = NumEntry;
   double* Array;
-  MalSpcForOneDimArray(Array, NumEntry);
+  MalSpcForOneDimArray(Array, Len);
   double SumEntry = 0.0;
   int i, TempRand;
-  for (i = 1; i <= NumEntry; i++) {
+  for (i = 1; i <= Len; i++) {
     TempRand = rand();// randomly generate a random value 0 - 0x7FFF(i.e., 0 -- RAND_MAX)
     Array[i] = (double)TempRand / RAND_MAX;//map the random value to the internal (0, 1)
     SumEntry += Array[i];
   }
-  for (i = 1; i <= NumEntry; i++) { Array[i] /= SumEntry; }
+  for (i = 1; i <= Len; i++) { Array[i] /= SumEntry; }
   return Array;
 }
 
 // record the cost time from tod1 to tod2
 long long int todiff(struct timeval* tod1, struct timeval* tod2) {
-    long long t1, t2;
-    t1 = tod1->tv_sec * 1000000 + tod1->tv_usec;
-    t2 = tod2->tv_sec * 1000000 + tod2->tv_usec;
-    return t1 - t2;
+  long long t1, t2;
+  t1 = tod1->tv_sec * 1000000 + tod1->tv_usec;
+  t2 = tod2->tv_sec * 1000000 + tod2->tv_usec;
+  return t1 - t2;
 }
 
 // concatenate two string (in char*) into one string (in char*)
@@ -93,33 +120,19 @@ char* strcatre(char* s1, char* s2) {
   return s3;
 }
 
-// determine whether a value exists in an array. 
-// If it exists, return the index of the first element equal to this value;
-// return 0, otherwise.
-template<typename Type>
-int find(Type* set1, Type object) {
-  if (set1[0] == 0) { return 0; }
-  int i = 0;
-  int ind = 0;
-  for (i = 1; i <= set1[0]; i++) {
-    if (object == set1[i]) { ind = i; break; }
-  }
-  return ind;
-}
-
-// size of intersection set between two sets
+// size of intersection set between two arrays/vectors
 // the elements of each set must be stored in ascending order!!!!
 template <typename Type>
-int NumIntersection(const Type* set1, const Type* set2) {
-  int size_1 = set1[0];
-  int size_2 = set2[0];
+int NumIntersection(const Type* array_1, const Type* array_2) {
+  int size_1 = array_1[0];
+  int size_2 = array_2[0];
   int i = 1;
   int j = 1;
   int joint_number = 0;
   while(1) {
-    if (i > set1[0] || j > set2[0]) { break; }
-    else if (set1[i] > set2[j]) { j++; }
-    else if (set1[i] < set2[j]) { i++; }
+    if (i > array_1[0] || j > array_2[0]) { break; }
+    else if (array_1[i] > array_2[j]) { j++; }
+    else if (array_1[i] < array_2[j]) { i++; }
     else {
       i++;
       j++;
@@ -132,16 +145,16 @@ int NumIntersection(const Type* set1, const Type* set2) {
 // size of union set between two sets
 // the elements of each set must be stored in ascending order!!!!
 template <typename Type>
-int NumUnion(const Type* set1, const Type* set2) {
-  int size_1 = set1[0];
-  int size_2 = set2[0];
+int NumUnion(const Type* array_1, const Type* array_2) {
+  int size_1 = array_1[0];
+  int size_2 = array_2[0];
   int i = 1;
   int j = 1;
   int joint_number = 0;
   while(1) {
-    if (i > set1[0] || j > set2[0]) { break; }
-    else if (set1[i] > set2[j]) { j++; }
-    else if (set1[i] < set2[j]) { i++; }
+    if (i > array_1[0] || j > array_2[0]) { break; }
+    else if (array_1[i] > array_2[j]) { j++; }
+    else if (array_1[i] < array_2[j]) { i++; }
     else {
       i++;
       j++;
@@ -466,10 +479,6 @@ void Graph::ReadGTclusters() {
       }
     }
   }
-  // free memory space
-  // state
-  for(j = 0; j <= num_nodes; j++) { delete []state[j]; }
-  delete []state;
 }
 
 void Graph::CalculateNumCommCommu() {
@@ -673,7 +682,7 @@ double ClusterTest::CalOverlapModul(int** Our1, int** Our2, int** neighbor, int 
       for (j = i+1; j <= Our1[k][0]; j++) {
         id_j = Our1[k][j];
         if (Our2[id_j][0] == 0) { continue; }
-        if (find(neighbor[id_i], id_j) == 0) {
+        if (FindInAscendOrderedArray(neighbor[id_i], id_j) == 0) {
           singleModul[k] = -neighbor[id_i][0] * neighbor[id_j][0] / 2.0 / (double)num_edges / Our2[id_i][0] / Our2[id_j][0];
         } else { 
           singleModul[k] = (1.0 - neighbor[id_i][0] * neighbor[id_j][0] / 2.0 / (double)num_edges) / Our2[id_i][0] / Our2[id_j][0];
@@ -964,374 +973,4 @@ double ClusterTest::CalARI(int** Our, int** GT, int num_nodes) {
   denominator = (temp_value_1 + temp_value_2) / 2.0 - numerator_2;
   double results = (numerator_1 - numerator_2) / denominator;
   return results;
-}
-
-
-// class of BIGCLAM (Jaewon Yang, Jure Leskovec. WSDM2013)
-class BIGCLAM {
-private:
-  // all nodes' FuzzyMembership vector
-  double** FuzzyMemb;
-  // cluster size
-  double* SizeClus;
-  // step size (learn rate)
-  double SizeStep;
-  // gradient of FuzzyMemb
-  double** Grad;
-  // temporal FuzzyMemb for verify
-  double** TempFuzzyMemb;
-  // total likelihood
-  double TotalLikelihood;
-  // Delta for determine the FuzzyMembership according to FuzzyMemb
-  double Delta;
-  // maximum number of iteration
-  int MaxIter;
-  
-public:
-  // Memb in clusters (similar with mygraph.clusters)
-  int** MembClus;
-  // Memb in nodes (similar with mygraph.cluster)
-  int** MembNode;
-  
-public:
-  // constructor (initialization, file name is needed)
-  BIGCLAM(double sizestep, int maxiter, double delta): SizeStep(sizestep), MaxIter(maxiter), Delta(delta) { }
-  // randomly initialize FuzzyMemb, TempFuzzyMemb, Grad, also the SizeClus is derived
-  void IniVar(Graph mygraph);
-  // calculate the gradient
-  void CalGrad(Graph mygraph);
-  // update FuzzyMemb
-  void CalTempFuzzyMemb(Graph mygraph);
-  // calculate total likelihood
-  double CalLikelihood(Graph mygraph);
-  // calculate temporal total likelihood
-  double CalTempLikelihood(Graph mygraph);
-  // generate crisp clusters according FuzzyMemb and Delta
-  void GenClus(Graph mygraph);
-  // perform BIGCLAM
-  void performBIGCLAM(Graph mygraph);
-};
-
-// randomly initialize FuzzyMemb, TempFuzzyMemb, Grad; SizeClus is also derived.
-void BIGCLAM::IniVar(Graph mygraph) {
-  int i, k;
-  MalSpcForTwoDimArray(FuzzyMemb, mygraph.num_nodes);
-  for (int i = 1; i <= mygraph.num_nodes; i++) {
-    FuzzyMemb[i] = new double[mygraph.num_clusters + 1];
-    FuzzyMemb[i] = randArrSumOne(mygraph.num_clusters);
-  }
-  // derive the size of each clusters
-  MalSpcForOneDimArray(SizeClus, mygraph.num_clusters);
-  for (k = 1; k <= mygraph.num_clusters; k++) {
-    SizeClus[k] = 0.0;
-    for (i = 1; i <= mygraph.num_nodes; i++) { SizeClus[k] += FuzzyMemb[i][k]; }
-  }
-  // initialize TempFuzzyMemb, begin by making same with FuzzyMemb
-  // space must be allocated and cannot be directly assigned as a whole part
-  MalSpcForTwoDimArray(TempFuzzyMemb, mygraph.num_nodes, mygraph.num_clusters);
-  for (i = 1; i <= mygraph.num_nodes; i++) {
-    for (k = 1; k <= mygraph.num_clusters; k++) { TempFuzzyMemb[i][k] = FuzzyMemb[i][k]; }
-  }
-  // initialize the Grad
-  MalSpcForTwoDimArray(Grad, mygraph.num_nodes, mygraph.num_clusters);
-  for (i = 1; i <= mygraph.num_nodes; i++) {
-    for (k = 1; k <= mygraph.num_clusters; k++) { Grad[i][k] = 0.0; }
-  }
-  // initialize Delta
-  // Delta = sqrt(-log(1-pow(10,-8)));
-  // allocate space for MembClus
-  MalSpcForTwoDimArray(MembClus, mygraph.num_clusters);
-  // allocate space for MembNode
-  MalSpcForTwoDimArray(MembNode, mygraph.num_nodes);
-}
-
-// calculate the gradient
-void BIGCLAM::CalGrad(Graph mygraph) {
-  int i, j; // for node index
-  int k, q; // for cluster index
-  double TempValue = 0.0;
-  double FirTerm = 0.0;
-  double SecTerm = 0.0;
-  // calculate gradient
-  for (i = 1; i <= mygraph.num_nodes; i++) {
-    for (q = 1; q <= mygraph.num_clusters; q++) {
-      FirTerm = 0.0;
-      for (j = 1; j <= mygraph.neighbor[i][0]; j++) {
-        TempValue = 0.0;
-        for (k = 1; k <= mygraph.num_clusters; k++) { 
-          TempValue += FuzzyMemb[i][k] * FuzzyMemb[mygraph.neighbor[i][j]][k]; 
-        }
-        if (TempValue == 0) { 
-          FirTerm += FuzzyMemb[mygraph.neighbor[i][j]][q] / pow(10, -7); 
-        } else {
-          FirTerm += FuzzyMemb[mygraph.neighbor[i][j]][q] * exp(-TempValue) / (1 - exp(-TempValue));
-        }        
-      }
-      TempValue = 0.0;
-      SecTerm = 0.0;
-      for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
-      TempValue += FuzzyMemb[mygraph.neighbor[i][j]][q]; 
-    }
-      SecTerm = SizeClus[q] - FuzzyMemb[i][q] - TempValue;
-      Grad[i][q] = FirTerm - SecTerm;
-    }
-    //printf("\r#Gradient Calculation Completed Progress: %.2lf%%(%d)", i / double(mygraph.num_nodes) * 100, i);
-    //fflush(stdout);
-  }
-}
-
-// calculate the TempFuzzyMemb
-void BIGCLAM::CalTempFuzzyMemb(Graph mygraph) {
-  int i, k;
-  double TempValue = 0.0;
-  for (i = 1; i <= mygraph.num_nodes; i++) {
-    for (k = 1; k <= mygraph.num_clusters; k++) {
-      TempValue = 0.0;
-      TempValue = FuzzyMemb[i][k] + SizeStep * (Grad[i][k]);
-      if (TempValue < 0) {
-        TempFuzzyMemb[i][k] = pow(10, -8);
-      } else { TempFuzzyMemb[i][k] = TempValue; }
-    }
-  }
-  //normalization
-  for (i = 1; i <= mygraph.num_nodes; i++) {
-    double temp = 0.0;
-    for (k = 1; k <= mygraph.num_clusters; k++) { temp += TempFuzzyMemb[i][k]; }
-    for (k = 1; k <= mygraph.num_clusters; k++) { TempFuzzyMemb[i][k] /= temp; }
-  }
-}
-
-// calculate total likelihood
-double BIGCLAM::CalLikelihood(Graph mygraph) {
-  int i, j; // for node index
-  int k; // for cluster index
-  double TempValue = 0.0;
-  double FirTerm = 0.0;
-  double SecTerm = 0.0;
-  double TotalLikelihood = 0.0;
-  double* TempVec;
-  MalSpcForOneDimArray(TempVec, mygraph.num_clusters);
-  for (i = 1; i <= mygraph.num_nodes; i++) {
-    FirTerm = 0.0;
-    for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
-      TempValue = 0.0;
-      for (k = 1; k <= mygraph.num_clusters; k++) { 
-      TempValue += FuzzyMemb[i][k] * FuzzyMemb[mygraph.neighbor[i][j]][k]; 
-    }
-      FirTerm += log(1 - exp(-TempValue));
-    }
-    SecTerm = 0.0;
-    for (k = 1; k <= mygraph.num_clusters; k++) {
-      for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
-      TempValue += FuzzyMemb[mygraph.neighbor[i][j]][k]; 
-    }
-      TempVec[k] = SizeClus[k] - FuzzyMemb[i][k] - TempValue;
-      SecTerm += FuzzyMemb[i][k] * TempVec[k];
-    }
-    //cout << FirTerm << " ";
-    //cout << SecTerm << endl;
-    TotalLikelihood += FirTerm - SecTerm;
-    printf("\r#likelihood Calculation Completed Progress: %.2lf%%(%d)", i / double(mygraph.num_nodes) * 100, i);
-    fflush(stdout);
-  }
-  cout << endl;
-  cout << "Total likelihood: " << TotalLikelihood << endl;
-  return TotalLikelihood;
-}
-
-// calculate temporal total likelihood
-double BIGCLAM::CalTempLikelihood(Graph mygraph) {
-  int i, j; // for node index
-  int k; // for cluster index
-  double TempValue = 0.0;
-  double FirTerm = 0.0;
-  double SecTerm = 0.0;
-  double newTotalLikelihood = 0.0;
-  double* TempVec;
-  MalSpcForOneDimArray(TempVec, mygraph.num_clusters);
-  for (i = 1; i <= mygraph.num_nodes; i++) {
-    FirTerm = 0.0;
-    for (j = 1; j <= mygraph.neighbor[i][0]; j++) { 
-      TempValue = 0.0;
-      for (k = 1; k <= mygraph.num_clusters; k++) { 
-      TempValue += TempFuzzyMemb[i][k] * TempFuzzyMemb[mygraph.neighbor[i][j]][k];
-    }
-      FirTerm += log(1 - exp(-TempValue));
-    }
-    SecTerm = 0.0;
-    for (k = 1; k <= mygraph.num_clusters; k++) { 
-      for (j = 1; j <= mygraph.neighbor[i][0]; j++) {
-      TempValue += TempFuzzyMemb[mygraph.neighbor[i][j]][k]; 
-    }
-      TempVec[k] = SizeClus[k] - TempFuzzyMemb[i][k] - TempValue;
-      SecTerm += TempFuzzyMemb[i][k] * TempVec[k];
-    }
-    newTotalLikelihood += FirTerm - SecTerm;
-    //printf("\r#CalLikelihood: %.2lf%%(%d)", i / double(mygraph.num_nodes) * 100, i);
-    fflush(stdout);
-  }
-  return newTotalLikelihood;
-}
-
-// generate cluster
-void BIGCLAM::GenClus(Graph mygraph) {
-  int temp = 0;
-  int i = 0;
-  int k = 0;
-  int c = 0;
-  for (i = 1; i <= mygraph.num_nodes; i++) {
-    temp = 0;
-    // determine the space size for space allocation
-    for (k = 1; k <= mygraph.num_clusters; k++) {
-      if (FuzzyMemb[i][k] > Delta) { temp++; }
-    }
-    // allocate space
-	MalSpcForOneDimArray(MembNode[i], temp);
-    c = 1;
-    for (k = 1; k <= mygraph.num_clusters; k++) {
-      if (FuzzyMemb[i][k] > Delta) { 
-        MembNode[i][c] = k; 
-        c++;
-      }
-    }
-  }
-  
-  for (k = 1; k <= mygraph.num_clusters; k++) {
-    temp = 0;
-    // determine the space size for space allocation
-    for (i = 1; i <= mygraph.num_nodes; i++) {
-      if (FuzzyMemb[i][k] > Delta) { temp++; }
-    }
-    // allocate space
-	MalSpcForOneDimArray(MembClus[k], temp);
-    c = 1;
-    for (i = 1; i <= mygraph.num_nodes; i++) {
-      if (FuzzyMemb[i][k] > Delta) { 
-        MembClus[k][c] = i; 
-        c++;
-      }
-    }
-  }
-}  
-
-// perform BIGCLAM
-void BIGCLAM::performBIGCLAM(Graph mygraph) {
-  int i, k;
-  IniVar(mygraph);
-  double oldLikelihood = 0.0;
-  double newLikelihood = CalLikelihood(mygraph);
-  double change = 0.00001;
-  
-  int iter = 1;
-  while (change >= 0.00001 && iter <= MaxIter) {
-    cout << iter << "-th iteration: ";
-    oldLikelihood = newLikelihood;
-    FuzzyMemb = TempFuzzyMemb;
-    for (k = 1; k <= mygraph.num_clusters; k++) {
-      SizeClus[k] = 0.0;
-      for (i = 1; i <= mygraph.num_nodes; i++) { SizeClus[k] += FuzzyMemb[i][k]; }
-    }
-    CalGrad(mygraph);
-    CalTempFuzzyMemb(mygraph);
-    newLikelihood = CalTempLikelihood(mygraph);
-    cout << "newLikelihood: " << newLikelihood << endl;
-    change = abs((newLikelihood - oldLikelihood) / oldLikelihood); 
-    
-    iter++;
-  }
-  GenClus(mygraph);
-  
-  /*for (i = 1; i <= mygraph.num_nodes; i++) {
-    for (k = 1; k <= mygraph.num_clusters; k++) {
-      // cout << FuzzyMemb[i][k] << ":(" << Grad[i][k] << "," << TempFuzzyMemb[i][k] << ") ";
-      if (FuzzyMemb[i][k] > Delta) { 
-        cout << 1 << " ";
-      } else { cout << 0 << " "; }
-    }
-    cout << endl;
-  }
-  for (k = 1; k <= mygraph.num_clusters; k++) {
-    for (i = 1; i <= mygraph.num_nodes; i++) {
-      // cout << FuzzyMemb[i][k] << ":(" << Grad[i][k] << "," << TempFuzzyMemb[i][k] << ") ";
-      if (FuzzyMemb[i][k] > Delta) { cout << i << " "; }
-    }
-    cout << endl;
-  }
-  for (i = 1; i <= mygraph.num_nodes; i++) {
-    cout << "(node-" << i << ") ";
-    for (k = 1; k <= MembNode[i][0]; k++) {
-      cout << MembNode[i][k] << " ";
-    }
-    cout << endl;
-  }*/
-}
-  
-
-int main(int argc, char **argv)
-{
-  char* head = argv[1]; // name of dataset
-  // type of 2nd-order proximity: 1. Jaccard Coefficient; 2. Salton Index; 3. Sorensen Index; 
-  // 4. Hub Promoted Index; 5. Hub Depressed Index; 6. Leicht-Holme-Newman Index
-  int TypeProx = atoi(argv[2]);
-  float stepsize = atof(argv[3]);
-  int maxiter = atoi(argv[4]);
-  float delta = atof(argv[5]);
-  
-  Graph mygraph(head); // initialize an object
-  struct timeval tod1, tod2; // record time
-  
-// Phase: Loading data
-  cout << "========= " << "Load graph: " << head << " ================== "<< endl;
-  gettimeofday(&tod1, NULL);    
-  mygraph.ReadPureDirGraph(); // load .graph file (pure directed graph)
-  //mygraph.ReadNodeFeature(); // load .nf file (node feature)
-  mygraph.ReadGTclusters(); // load .gt file (cluster ground-truth)
-  //VisualizeGraph(mygraph); //output .gml file
-  gettimeofday(&tod2, NULL);
-  cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
-  cout << endl;
-
-//Tools: Calculate second-order proximity and correlation between common clusters of node pairs
-  // 1. Jaccard Coefficient; 2. Salton Index; 3. Sorensen Index; 
-  // 4. Hub Promoted Index; 5. Hub Depressed Index; 6. Leicht-Holme-Newman Index
-  cout << "========= " << "Calculate 2nd proximity" << " ================== "<< endl;
-  gettimeofday(&tod1, NULL);
-  mygraph.CalSecOrdProx(TypeProx); //CalSecOrdProx(int type)
-  //mygraph.CalCorrelation();
-  //mygraph.OutputCorrelation();
-  gettimeofday(&tod2, NULL);
-  cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
-  cout << endl;
-    
-// Tools: BIGCLAM
-  cout << "========= " << "Node clustering by BIGCLAM." << "================== " << endl;
-  BIGCLAM myBIGCLAM(stepsize, maxiter, delta);
-  gettimeofday(&tod1, NULL);
-  myBIGCLAM.performBIGCLAM(mygraph);
-  gettimeofday(&tod2, NULL);
-  cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
-  cout << endl;
-  
-//Tools: Performance Test on nodes clustering
-  cout << "========= " << "Performance test on nodes clustering." << "================== "<< endl;
-  ClusterTest mytest;
-  gettimeofday(&tod1, NULL);
-  // no gt
-  cout << "##### no ground-truth information:" << endl;
-  //cout << "Modularity (no overlapping) = " << mytest.CalNonOverlapModul(mygraph.clusters, mygraph.cluster, mygraph.neighbor, mygraph.num_edges) << endl;
-  cout << "Modularity (overlapping) = " << mytest.CalOverlapModul(myBIGCLAM.MembClus, myBIGCLAM.MembNode, mygraph.neighbor, mygraph.num_edges) << endl;
-  cout << "Tightness = " << mytest.CalTgt(myBIGCLAM.MembClus, myBIGCLAM.MembNode, mygraph.neighbor) << endl;
-  cout << "Adjusted Tightness = " << mytest.CalAdjTgt(myBIGCLAM.MembClus, myBIGCLAM.MembNode, mygraph.neighbor) << endl;
-  cout << endl;
-  // with gt
-  cout << "##### with ground-truth information:" << endl;
-  cout << "AvgF1 = " << mytest.CalAvgF1(myBIGCLAM.MembClus, mygraph.clusters) << endl;
-  cout << "NMI = " << mytest.CalNMI(myBIGCLAM.MembClus, mygraph.clusters, mygraph.num_nodes) << endl;
-  cout << "Omega Index = " << mytest.CalOmegaIndex(myBIGCLAM.MembNode, mygraph.cluster, mygraph.num_nodes) << endl;
-  cout << "ARI = " << mytest.CalARI(myBIGCLAM.MembClus, mygraph.clusters, mygraph.num_nodes) << endl;
-  gettimeofday(&tod2, NULL);
-  cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
-  cout << endl;
-  
-  return 0;
 }

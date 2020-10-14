@@ -51,72 +51,92 @@ long long int todiff(struct timeval* tod1, struct timeval* tod2) {
 //////////////////////////////////////////////////////////////////////////
 // basic graph class
 class GRAPH {
-public:
+private:
   // dataset name (do not contain the suffix name)
   string NameData;
-  // type of second-order proximity
-  int TpProx;
-  
-  /*----------------------------basic topology information of pure graph--------------------------*/
+  /*-------basic topology information of pure graph----------*/
+  // network topology, each set of corresponding node contains its all neighbors
+  TIntVSet Neighbor;
   // number of nodes
   int NumNodes;
   // number of edges
   int NumEdges;
-  // network topology, each set of corresponding node contains its all neighbors
-  TIntVSet Neighbor;
-  
-  /*------------------weighted graph (have not used/defined, 2020-10-13)------------*/
+  /*--------weighted graph------------*/
   // values on nodes (each node is associated with a single value (e.g., centrality))
-  TDblV wgt_nodes;
+  TDblV WgtNodes;
   // values on nodes (each node is associated with a vector,0-1, binary)
   TIntVV BinNodeFea;
   // length of feature of nodes when each node is associated with a vector
   int LenNodeFea;
-  
-  /*----------------------------real cluster information (ground truth)----------------------------*/
+  /*-------real cluster information (ground truth)---------*/
   // number of real clusters
   int NumClus; 
   // each set of corresponding node contains the cluster ids she belongs
   TIntVSet ClusInNode;
   // each set of corresponding cluster contains all nodes in this cluster
   TIntVSet ClusInClus;
-  
+
 public:
   // constructor (initialization, file name is needed)
   GRAPH(string dataname) { NameData = dataname; }
-  // load a graph with topology information
-  void ReadPureDirGraph();
-  // load a graph node feature information
-  void ReadNodeFea();
-  // load real cluster information
-  void ReadGTclusters();
   
-  // neighbor based proximity
-  double NghBsdProx(TIntSet FirNode, TIntSet SecNode, int type);
+  // load a graph (directed) with topology information
+  void LoadGraphTpl();
+  // get graph topology
+  TIntVSet GetNeighbor() { return Neighbor; }
+  // get number of nodes
+  int GetNumNodes() { return NumNodes; }
+  // get number of edges
+  int GetNumEdges() { return NumEdges; }
+  // get degree of a node
+  int GetDeg(int NId) { return Neighbor[NId-1].size(); }
   // calculate the second-order proximity
   TDblVV CalSecOrdProx(int type);
-  // calculate the number of common communities of all node pairs
-  TIntVV CalNumCmnCmty();
+  // calculate the second-order proximity (Jaccard Coefficient)
+  TDblVV CalSecOrdProx() { return CalSecOrdProx(1); }
   
-  // degree centrality
-  TIntV DegCtly();
-  // betweeness centrality
-  TIntV CondCtly();
+  // get all node's weight (single value)
+  TDblV GetWgtNodes() { return WgtNodes; }
+  // load a graph node feature information
+  void LoadNodeFea();
+  // get length of features
+  int GetLenNodeFea() { return LenNodeFea; }
+  // get node features (in 0-1)
+  TIntVV GetBinNodeFea() { return BinNodeFea; }
+  
+  // load real cluster information
+  void LoadClusGt();
+  // get gt clusters listed in cluster
+  TIntVSet GetClusInClus() { return ClusInClus; }
+  // get gt clusters listed in node
+  TIntVSet GetClusInNode() { return ClusInNode; }
+  // get number of clusters
+  int GetNumClus() { return NumClus; }
+  // calculate the number of common communities of all node pairs
+  int CalNumCmnCmty(int NId1, int NId2) { return CalNumJointSets(ClusInNode[NId1-1], ClusInNode[NId2-1]); }
+  
+  // degree centrality of one node
+  int DegCtly(int NId) { return GetDeg(NId); }
+  // conductance centrality of one node
+  double CondCtly(int NId);
   
   // visualize the graph (output a .gml file which can be fed into software named Cytoscape
   void VisualizeGraph();
   // test the functionality of this Graph class
   void FuncTest();
   
+  // neighbor based proximity
+  double NghBsdProx(TIntSet FirNode, TIntSet SecNode, int type);
+  // calculate the number of elements in the intersection set of two sets
   inline int CalNumJointSets(TIntSet FirSet, TIntSet SecSet) {
-    TIntSet InterSet;
-    set_intersection(FirSet.begin(), FirSet.end(), SecSet.begin(), SecSet.end(), insert_iterator<set<int> >(InterSet, InterSet.begin()));
-    int NumJoint = InterSet.size();
+    TIntSet JointSet;
+    set_intersection(FirSet.begin(), FirSet.end(), SecSet.begin(), SecSet.end(), insert_iterator<TIntSet >(JointSet, JointSet.begin()));
+    int NumJoint = JointSet.size();
     return NumJoint;
   }
 };
 
-void GRAPH::ReadPureDirGraph() {
+void GRAPH::LoadGraphTpl() {
   string SGraphFile = NameData + ".graph";
   const char* GraphFile = SGraphFile.c_str();
   if (access(GraphFile, R_OK|W_OK) != 0) {
@@ -126,7 +146,7 @@ void GRAPH::ReadPureDirGraph() {
   ifstream finG;
   finG.open(GraphFile);
   string szLine;
-  set<int> tempset;
+  TIntSet tempset;
   while(getline(finG, szLine)) {
     TStrV tData;
     istringstream iss(szLine);
@@ -147,7 +167,7 @@ void GRAPH::ReadPureDirGraph() {
 }
 
 // load a graph node feature information
-void GRAPH::ReadNodeFea() {
+void GRAPH::LoadNodeFea() {
   string SFeaFile = NameData + ".nf";
   const char* FeaFile = SFeaFile.c_str();
   if (access(FeaFile, R_OK|W_OK) != 0) {
@@ -200,14 +220,14 @@ void GRAPH::ReadNodeFea() {
 }
 
 // load real cluster information
-void GRAPH::ReadGTclusters() {
+void GRAPH::LoadClusGt() {
   string SClusFile = NameData + ".gt";
   const char* ClusFile = SClusFile.c_str();
   if (access(ClusFile, R_OK|W_OK) != 0) { printf("No cluster (.gt) file exists!!!\n"); return; }
   ifstream finGT;
   finGT.open(ClusFile);
   string szLine;
-  set<int> tempset;
+  TIntSet tempset;
   while(getline(finGT, szLine)) {
     TStrV tData;
     istringstream iss(szLine);
@@ -223,7 +243,7 @@ void GRAPH::ReadGTclusters() {
   NumClus = ClusInClus.size();
   ClusInNode.resize(NumNodes);
   for (int i = 1; i <= ClusInClus.size(); i++) {
-    for (set<int>::iterator it_set = ClusInClus[i - 1].begin(); it_set != ClusInClus[i - 1].end(); it_set++) {
+    for (TIntSetIter it_set = ClusInClus[i - 1].begin(); it_set != ClusInClus[i - 1].end(); it_set++) {
       ClusInNode[*it_set - 1].insert(i);
     }
   }
@@ -262,7 +282,6 @@ double GRAPH::NghBsdProx(TIntSet FirNode, TIntSet SecNode, int type) {
 
 // calculate the second-order proximity
 TDblVV GRAPH::CalSecOrdProx(int type) {
-  TpProx = type;
   if (type == 1) { printf("Second-order proximity: Jaccard Coefficient.\n"); }
   else if (type == 2) { printf("Second-order proximity: Salton Index.\n"); }
   else if (type == 3) { printf("Second-order proximity: Sorensen Index.\n");  }
@@ -275,30 +294,13 @@ TDblVV GRAPH::CalSecOrdProx(int type) {
   for (i = 0; i < NumNodes; i++) { Proximity[i].resize(NumNodes - i); }
   for (i = 0; i < NumNodes; i++) {
     for (j = i; j < NumNodes; j++) {
-      Proximity[i][j - i] = NghBsdProx(Neighbor[i], Neighbor[j], TpProx);
+      Proximity[i][j - i] = NghBsdProx(Neighbor[i], Neighbor[j], type);
     }
     printf("\rProximity Calculation Completed Progress: %.2lf%%(%d)", i / double(NumNodes) * 100, i);
     fflush(stdout);
   }
   printf("\n");
   return Proximity;
-}
-
-// calculate the number of common communities of each node pair
-TIntVV GRAPH::CalNumCmnCmty() {
-  TIntVV NumCmnCmty;
-  NumCmnCmty.resize(NumNodes);
-  int i;
-  for (i = 0; i < NumNodes; i++) { NumCmnCmty[i].resize(NumNodes - i); }
-  for (i = 0; i < NumNodes; i++) {
-    for (int j = i; j < NumNodes; j++) {
-      NumCmnCmty[i][j - i] = CalNumJointSets(ClusInNode[i], ClusInNode[j]);
-    }
-    printf("\r#Common Communities Calculation Completed Progress: %.2lf%%(%d)", i / double(NumNodes) * 100, i);
-    fflush(stdout);
-  }
-  printf("\n");
-  return NumCmnCmty;
 }
 
 // visualize the graph (output a .gml file which can be fed into software named Cytoscape
@@ -311,7 +313,7 @@ void GRAPH::VisualizeGraph() {
   foutG << "[" << endl;
   foutG << "  directed 0" << endl;
   int i, j;
-  set<int>::iterator it_set;
+  TIntSetIter it_set;
   for (i = 0; i < NumNodes; i++) {
     foutG << "  node" << endl;
     foutG << "  [" << endl;
@@ -346,7 +348,7 @@ void GRAPH::FuncTest() {
     return;
   }
   int i, j;
-  set<int>::iterator it_set;
+  TIntSetIter it_set;
   if (Neighbor.empty()) { 
     printf("No topology information!!!\n");
     return;  
@@ -403,37 +405,37 @@ void GRAPH::FuncTest() {
     }
   }
   
-  if (ClusInClus.empty()) { 
-    printf("No ground-truth information!!!\n"); 
-  } else {
-    printf("=============Number of common communities==============\n");
-    TIntVV NumCmnCmty;
-  NumCmnCmty = CalNumCmnCmty();
-    for (i = 0; i < NumNodes; i++) {
-      printf("node-%d: ", i + 1);
-      for (j = i; j < NumNodes; j++) {
-        printf("%d ", NumCmnCmty[i][j - i]);
-      }
-      printf("\n");
-    }
-  }
-  
   VisualizeGraph();
 }
 
-// degree centrality
-TIntV GRAPH::DegCtly() {
-  TIntV ImptNode;
-  ImptNode.resize(NumNodes);
-  for (int i = 0; i < ImptNode.size(); i++) { ImptNode[i] = Neighbor[i].size(); }
-  return ImptNode;
-}
-
 // conductance centrality (Gleich, et al. KDD12)
-TIntV GRAPH::CondCtly() {
-  TIntV ImptNode;
-  ImptNode.resize(NumNodes);
-  
+double GRAPH::CondCtly(int NId) {
+  double ImptNode = 0.0; // small value indicates an important node.
+  TIntSet NghNId(Neighbor[NId - 1]);
+  NghNId.insert(NId); // did in SNAP
+  int LenNghs = NghNId.size();
+  if (LenNghs < 5) {
+    ImptNode = 1.0;
+	return ImptNode;
+  }
+  int Edges2 = 2 * NumEdges;
+  int Vol = 0,  Cut = 0;
+  for (TIntSetIter it_set = NghNId.begin(); it_set != NghNId.end(); it_set++) {
+    for (TIntSetIter it_set1 = Neighbor[*it_set - 1].begin(); it_set1 != Neighbor[*it_set - 1].end(); it_set1++) {
+      // whether her neighbor's neighbor is also her neighbor.
+      if (NghNId.find(*it_set1) == NghNId.end()) { Cut += 1; }
+    }
+    // Vol store the summation of degree of all nodes inside this set 
+    Vol += Neighbor[*it_set - 1].size();
+  }
+  // get conductance
+  if (Vol != Edges2) {
+    if (2 * Vol > Edges2) { ImptNode = Cut / double (Edges2 - Vol); }
+    else if (Vol == 0) { ImptNode = 0.0; }
+    else { ImptNode = Cut / double(Vol); }
+  } else {
+    if (Vol == Edges2) { ImptNode = 1.0; }
+  }
   return ImptNode;
 }
 
@@ -478,10 +480,11 @@ public:
   // each set in Our and GT denotes a cluster, containing a set of nodes who belong it
   double CalARI(TIntVSet Our, TIntVSet GT, int num_nodes);
   
+  // calculate the number of elements in the intersection set of two sets
   inline int CalNumJointSets(TIntSet FirSet, TIntSet SecSet) {
-    set<int> InterSet;
-    set_intersection(FirSet.begin(), FirSet.end(), SecSet.begin(), SecSet.end(), insert_iterator<set<int> >(InterSet, InterSet.begin()));
-    int NumJoint = InterSet.size();
+    TIntSet JointSet;
+    set_intersection(FirSet.begin(), FirSet.end(), SecSet.begin(), SecSet.end(), insert_iterator<TIntSet >(JointSet, JointSet.begin()));
+    int NumJoint = JointSet.size();
     return NumJoint;
   }
 };
@@ -827,8 +830,6 @@ double ClusterTest::CalARI(TIntVSet Our, TIntVSet GT, int num_nodes) {
 int main(int argc, char **argv)
 {
   string head = argv[1]; // name of dataset
-  // type of 2nd-order proximity: 1. Jaccard Coefficient; 2. Salton Index; 3. Sorensen Index; 
-  // 4. Hub Promoted Index; 5. Hub Depressed Index; 6. Leicht-Holme-Newman Index
   //int TypeProx = atoi(argv[2]);
   //float stepsize = atof(argv[3]);
   //int maxiter = atoi(argv[4]);
@@ -840,58 +841,35 @@ int main(int argc, char **argv)
 // Phase: Loading data
   cout << "========= " << "Load graph: " << head << " ================== "<< endl;
   gettimeofday(&tod1, NULL);    
-  mygraph.ReadPureDirGraph(); // load .graph file (pure directed graph)
-  printf("Number of Nodes: %d, Number of edges: %d\n", mygraph.NumNodes, mygraph.NumEdges);
-  mygraph.ReadNodeFea(); // load .nf file (node feature)
-  mygraph.ReadGTclusters(); // load .gt file (cluster ground-truth)
-  printf("Number of clusters: %d\n", mygraph.NumClus);
-  //VisualizeGraph(mygraph); //output .gml file
-  //mygraph.FuncTest();
-  gettimeofday(&tod2, NULL);
-  cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
-  cout << endl;
-
-//Tools: Calculate second-order proximity and correlation between common clusters of node pairs
-  // 1. Jaccard Coefficient; 2. Salton Index; 3. Sorensen Index; 
-  // 4. Hub Promoted Index; 5. Hub Depressed Index; 6. Leicht-Holme-Newman Index
-  cout << "========= " << "Calculate 2nd proximity" << " ================== "<< endl;
-  gettimeofday(&tod1, NULL);
-  //mygraph.CalSecOrdProx(TypeProx); //CalSecOrdProx(int type)
-  //mygraph.CalCorrelation();
-  //mygraph.OutputCorrelation();
+  mygraph.LoadGraphTpl(); // load .graph file (pure directed graph)
+  printf("Number of Nodes: %d, Number of edges: %d\n", mygraph.GetNumNodes(), mygraph.GetNumEdges());
+  mygraph.LoadNodeFea(); // load .nf file (node feature)
+  mygraph.LoadClusGt(); // load .gt file (cluster ground-truth)
+  printf("Number of clusters: %d\n", mygraph.GetNumClus());
   gettimeofday(&tod2, NULL);
   cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
   cout << endl;
     
-// Tools: BIGCLAM
-  cout << "========= " << "Node clustering by BIGCLAM." << "================== " << endl;
-  //BIGCLAM myBIGCLAM(stepsize, maxiter, delta);
-  gettimeofday(&tod1, NULL);
-  //myBIGCLAM.performBIGCLAM(mygraph);
-  gettimeofday(&tod2, NULL);
-  cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
-  cout << endl;
- 
 //Tools: Performance Test on nodes clustering
   cout << "========= " << "Performance test on nodes clustering." << "================== "<< endl;
   ClusterTest mytest;
   gettimeofday(&tod1, NULL);
   // no gt
   cout << "##### no ground-truth information:" << endl;
-  cout << "Modularity (no overlapping) = " << mytest.CalNonOverlapModul(mygraph.ClusInClus, mygraph.ClusInNode, mygraph.Neighbor, mygraph.NumEdges) << endl;
-  cout << "Modularity (overlapping) = " << mytest.CalOverlapModul(mygraph.ClusInClus, mygraph.ClusInNode, mygraph.Neighbor, mygraph.NumEdges) << endl;
-  cout << "Tightness = " << mytest.CalTgt(mygraph.ClusInClus, mygraph.ClusInNode, mygraph.Neighbor) << endl;
-  cout << "Adjusted Tightness = " << mytest.CalAdjTgt(mygraph.ClusInClus, mygraph.ClusInNode, mygraph.Neighbor) << endl;
+  cout << "Modularity (no overlapping) = " << mytest.CalNonOverlapModul(mygraph.GetClusInClus(), mygraph.GetClusInNode(), mygraph.GetNeighbor(), mygraph.GetNumEdges()) << endl;
+  cout << "Modularity (overlapping) = " << mytest.CalOverlapModul(mygraph.GetClusInClus(), mygraph.GetClusInNode(), mygraph.GetNeighbor(), mygraph.GetNumEdges()) << endl;
+  cout << "Tightness = " << mytest.CalTgt(mygraph.GetClusInClus(), mygraph.GetClusInNode(), mygraph.GetNeighbor()) << endl;
+  cout << "Adjusted Tightness = " << mytest.CalAdjTgt(mygraph.GetClusInClus(), mygraph.GetClusInNode(), mygraph.GetNeighbor()) << endl;
   cout << endl;
   // with gt
   cout << "##### with ground-truth information:" << endl;
-  cout << "AvgF1 = " << mytest.CalAvgF1(mygraph.ClusInClus, mygraph.ClusInClus) << endl;
-  cout << "NMI = " << mytest.CalNMI(mygraph.ClusInClus, mygraph.ClusInClus, mygraph.NumNodes) << endl;
-  cout << "Omega Index = " << mytest.CalOmegaIndex(mygraph.ClusInNode, mygraph.ClusInNode, mygraph.NumNodes) << endl;
-  cout << "ARI = " << mytest.CalARI(mygraph.ClusInClus, mygraph.ClusInClus, mygraph.NumNodes) << endl;
+  cout << "AvgF1 = " << mytest.CalAvgF1(mygraph.GetClusInClus(), mygraph.GetClusInClus()) << endl;
+  cout << "NMI = " << mytest.CalNMI(mygraph.GetClusInClus(), mygraph.GetClusInClus(), mygraph.GetNumNodes()) << endl;
+  cout << "Omega Index = " << mytest.CalOmegaIndex(mygraph.GetClusInNode(), mygraph.GetClusInNode(), mygraph.GetNumNodes()) << endl;
+  cout << "ARI = " << mytest.CalARI(mygraph.GetClusInClus(), mygraph.GetClusInClus(), mygraph.GetNumNodes()) << endl;
   gettimeofday(&tod2, NULL);
   cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
   cout << endl;
-  
+
   return 0;
 }

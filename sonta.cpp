@@ -87,6 +87,7 @@ public:
   void LoadGraphTpl();
   // get graph topology
   TIntSet GetNeighbor(int NID) { return Neighbor[NID-1]; }
+  TIntSetV GetNeighbor() { return Neighbor; }
   // get number of nodes
   int GetNumNodes() { return NumNodes; }
   // get number of edges
@@ -467,84 +468,105 @@ public:
     int NumJoint = JointSet.size();
     return NumJoint;
   }
+  TIntSet inline CalJointSets(TIntSet FirSet, TIntSet SecSet) {
+    TIntSet JointSet;
+    set_intersection(FirSet.begin(), FirSet.end(), SecSet.begin(), SecSet.end(), insert_iterator<TIntSet >(JointSet, JointSet.begin()));
+    return JointSet;
+  }
 };
 
+double ClusterTest::CalNonOverlapModul(TIntSetV Our1, TIntSetV Our2, TIntSetV neighbor, int num_edges) {
+// last checked and modified in 2021-01-13 by Yuyao Wang.
 // calculate modularity of non-overlapping cluster structure. (Newman, PRE, 2004.)
 // each set in Our1 denotes a cluster, containing a set of nodes who belongs it.
 // each set in Our2 denotes a node, containing a set of clusters to which a specific node belongs.
 // if input is a overlapping cluster structure, this function will only take the first cluster for each node as her FuzzyMembership.
 // num_edges is the number of all edges in the graph.
-double ClusterTest::CalNonOverlapModul(TIntSetV Our1, TIntSetV Our2, TIntSetV neighbor, int num_edges) {
-  int i = 0, k = 0;
-  // number of all nodes in the graph
-  int num_nodes = neighbor.size();
+// the value of modularity lies between -1 and 1.
+  if (neighbor.size() != Our2.size()) { 
+    cout << "inappropriate inputs!!!" << endl;
+    exit(1); 
+  }
   TDblV theta;
   theta.resize(Our1.size());
   TIntSetIter it_set;
-  for (k = 0; k < theta.size(); k++) {
-    theta[k] = 0.0;
-    for (it_set = Our1[k].begin(); it_set != Our1[k].end(); it_set++) {
-      theta[k] += neighbor[*it_set - 1].size();
+  for (int CID = 0; CID < theta.size(); CID++) {
+    theta[CID] = 0.0;
+    // total degree (in-degree + out-degree) of kth community, for the pre-computation of \sum_j d_j in the equation
+    // here we sum all nodes including the target node who is removed sometimes in some papers.
+    for (it_set = Our1[CID].begin(); it_set != Our1[CID].end(); it_set++) {
+      theta[CID] += neighbor[*it_set - 1].size();
     }
-    theta[k] /= 2.0 * num_edges;
+    theta[CID] /= 2.0 * num_edges;
   }
   // modularity of single node
   TDblV singleModul;
-  singleModul.resize(num_nodes);
-  double tempValue = 0.0, SumModul = 0.0;
-  for (i = 0; i < num_nodes; i++) {
-    tempValue = 0.0;
-    singleModul[i] = 0.0;
-    // determine whether node-i does not belong to any cluster.
-    if (Our2[i].empty()) { 
-      singleModul[i] = 0.0; 
-    } else if (neighbor[i].empty() == 0) {
-      it_set = Our2[i].begin();
-      tempValue = CalNumJointSets(neighbor[i], Our1[*it_set - 1]) / (double)neighbor[i].size();
-      singleModul[i] = (tempValue - theta[*it_set - 1]) * neighbor[i].size() / 2.0 / num_edges;
-    }
-    // summation
-    SumModul += singleModul[i];
+  singleModul.resize(neighbor.size());
+#pragma omp parallel for
+  for (int NID = 1; NID <= neighbor.size(); NID++) {
+    double tempValue = 0.0;
+    singleModul[NID-1] = 0.0;
+    // determine whether NID does not belong to any cluster.
+    if (Our2[NID-1].empty()) { 
+      singleModul[NID-1] = 0.0; 
+    } else if (neighbor[NID-1].empty() == 0) {
+      it_set = Our2[NID-1].begin(); // adopt the first value for non-overlapping communities (if there are multiple values)
+      tempValue = CalNumJointSets(neighbor[NID-1], Our1[*it_set - 1]); // first term of equation
+      singleModul[NID-1] = (tempValue - theta[*it_set - 1] * neighbor[NID-1].size()) / 2.0 / num_edges;
+    }    
   }
+  double SumModul = 0.0;
+  // total value of modularity
+  for (int NID = 1; NID <= neighbor.size(); NID++) { SumModul += singleModul[NID-1]; }
   return SumModul;
 }
 
-// calculating modularity of overlapping and hierarchical cluster structure.(Shen, et al. Physica A, 2009.)
+double ClusterTest::CalOverlapModul(TIntSetV Our1, TIntSetV Our2, TIntSetV neighbor, int num_edges) {
+// last checked and modified in 2021-01-13 by Yuyao Wang.
+// calculating modularity of overlapping and hierarchical cluster structure.(Eqn.(2) by Huawei Shen, et al. Physica A, 2009.)
 // each set in Our1 denotes a cluster, containing a set of nodes who belongs it.
 // each set in Our2 denotes a node, containing a set of clusters to which a specific node belongs.
 // num_edges is the number of all edges in the graph.
-double ClusterTest::CalOverlapModul(TIntSetV Our1, TIntSetV Our2, TIntSetV neighbor, int num_edges) {
-  int i = 0, j = 0, k = 0;
-  int id_i, id_j;
-  int num_clusters = Our1.size();
-  TDblV singleModul;
-  singleModul.resize(num_clusters);
-  double SumModul = 0.0;
-  for (k = 0; k < num_clusters; k++) {
-    if (Our1[k].size() < 2) { singleModul[k] = 0.0; continue; }
-    singleModul[k] = 0.0;  
-    TIntSet VerifySet;
-    for (TIntSetIter it_set = Our1[k].begin(); it_set != Our1[k].end(); it_set++) {
-      id_i = *it_set;
-      VerifySet.insert(id_i);
-      if (Our2[id_i - 1].empty()) { continue; }
-      for (TIntSetIter it_set1 = Our1[k].begin(); it_set1 != Our1[k].end(); it_set1++) {
-        if (VerifySet.find(*it_set1) != VerifySet.end()) { continue; }
-        else {
-          id_j = *it_set1;
-          if (Our2[id_j - 1].empty()) { continue; }
-          if (neighbor[id_i - 1].find(id_j) == neighbor[id_i - 1].end()) {
-            singleModul[k] = -neighbor[id_i - 1].size() * neighbor[id_j - 1].size() / 2.0 / (double)num_edges / Our2[id_i - 1].size() / Our2[id_j - 1].size();
-          } else {
-            singleModul[k] = (1.0 - neighbor[id_i - 1].size() * neighbor[id_j - 1].size() / 2.0 / (double)num_edges) / Our2[id_i - 1].size() / Our2[id_j - 1].size();
-          }
-        }
-      }
-    }
-    VerifySet.clear();
-    SumModul += singleModul[k];
+// here we tranform the defintion of community-oriented to node-oriented, which can be calculated by the CalNonOverlapModul() for non-overlapping.
+// In particular, we divide 1/O_iO_j.
+// Note that if the input is a graph with non-overlapping community, this function's result is equal to CalNonOverlapModul(), but it is slow.
+  if (neighbor.size() != Our2.size()) { 
+    cout << "inappropriate inputs!!!" << endl;
+    exit(1); 
   }
-  SumModul = 0.5 * SumModul / num_edges;
+  TDblV theta;
+  theta.resize(Our1.size());
+  TIntSetIter it_set;
+  for (int CID = 0; CID < theta.size(); CID++) {
+    theta[CID] = 0.0;
+    // total degree (in-degree + out-degree) of kth community, for the pre-computation of \sum_j d_j in the equation
+    // here we sum all nodes including the target node who is removed sometimes in some papers.
+    for (it_set = Our1[CID].begin(); it_set != Our1[CID].end(); it_set++) {
+      theta[CID] += (neighbor[*it_set - 1].size() / Our2[*it_set - 1].size()); // *different for non-overlapping
+    }
+    theta[CID] /= 2.0 * num_edges;
+  }
+  // modularity of single node
+  TDblV singleModul;
+  singleModul.resize(neighbor.size());
+#pragma omp parallel for
+  for (int NID = 1; NID <= neighbor.size(); NID++) {
+    double tempValue = 0.0;
+    singleModul[NID-1] = 0.0;
+    // determine whether NID does not belong to any cluster.
+    if (Our2[NID-1].empty()) { 
+      singleModul[NID-1] = 0.0; 
+    } else if (neighbor[NID-1].empty() == 0) {
+      TIntSet JointSet = CalJointSets(neighbor[NID-1], Our1[*it_set - 1]); // *different for non-overlapping
+      for (it_set = JointSet.begin(); it_set != JointSet.end(); it_set++) {
+        tempValue += (1 / Our2[*it_set - 1].size()); // *different for non-overlapping
+      }
+      singleModul[NID-1] = (tempValue - theta[*it_set - 1] * neighbor[NID-1].size()) / 2.0 / num_edges / Our2[NID-1].size(); // *different for non-overlapping
+    }    
+  }
+  double SumModul = 0.0;
+  // total value of modularity
+  for (int NID = 1; NID <= neighbor.size(); NID++) { SumModul += singleModul[NID-1]; }
   return SumModul;
 }
 
@@ -851,7 +873,7 @@ void SIMGT::NeighborComInit() {
   // compute conductance of neighborhood community
   for (int NId = 1; NId <= F.size(); NId++) {
 	double Phi = G.CondCtly(NId);
-    NIdPhiV.emplace_back(make_pair(Phi, NId));
+    NIdPhiV.push_back(make_pair(Phi, NId));
   }
   sort(NIdPhiV.begin(), NIdPhiV.end());
   printf("conductance computation completed\n");
@@ -897,6 +919,211 @@ void SIMGT::PeformSIMGT() {
   }
 }
 
+//////////////////////////////////
+///////////////////////////////////////////////
+class EGTCD {
+private:
+  GRAPH G;
+  int NumComs; // number of communities
+  //TIntSetV Neighbor1; // topology of first tier graph
+  
+  int TypeSecOrdProximity; // type of calculation of second-order proximity
+  double ThresGenSecOrdGraph; // [0,1], threshold for generating second order graph.
+  
+  TIntSetV SecOrdNeighbor; // topology of second-order graph
+  int NumEdges2; // number of edges of second-order graph
+  TIntVV NumJointNgh; // store the number of joint neighbors
+  
+public:
+  EGTCD(GRAPH graph): G(graph.GetDataName()), TypeSecOrdProximity(1), ThresGenSecOrdGraph(0.0) {}
+  void Initialization(); // load data
+  double NghBsdProx(int NID1, int NID2, int type);
+  void GenerateSecondOrderGraph(TIntSetV& Neighbor2, int TypeSecOrdProximity, double ThresGenSecOrdGraph);
+  void VisualizeSecondOrderGraph(); // visualize second order graph, with different topology, same node and gt communities to first order graph
+  void OutputMetric(TDblVV MetricResults);
+  void PlotMotivation(); // PlotMotivation
+  int inline CalNumJointSets(TIntSet FirSet, TIntSet SecSet) {
+    TIntSet JointSet;
+    set_intersection(FirSet.begin(), FirSet.end(), SecSet.begin(), SecSet.end(), insert_iterator<TIntSet >(JointSet, JointSet.begin()));
+    int NumJoint = JointSet.size();
+    return NumJoint;
+  }
+};
+
+void EGTCD::Initialization() {
+  G.LoadGraphTpl(); // load .graph file (pure directed graph)
+  printf("Number of Nodes: %d, Number of edges: %d\n", G.GetNumNodes(), G.GetNumEdges());
+  G.LoadClusGt(); // load .gt file (cluster ground-truth)
+  printf("Number of clusters: %d\n", G.GetNumClus());
+}
+
+// neighbor based proximity
+double EGTCD::NghBsdProx(int NID1, int NID2, int type) {
+  TIntSet FirNode = G.GetNeighbor(NID1);
+  TIntSet SecNode = G.GetNeighbor(NID2);
+  int LenFirNode = FirNode.size();
+  int LenSecNode = SecNode.size();
+  int NumJoint = NumJointNgh[NID1-1][NID2-NID1-1]; // pre-computed
+  int NumUnion = LenFirNode + LenSecNode - NumJoint;
+  NumJoint += 2;
+  NumUnion += 2;
+  LenFirNode++;
+  LenSecNode++;
+  // Jaccard Coefficient
+  if (type == 1) { return (double)NumJoint / NumUnion; }
+  // Salton Index
+  else if (type == 2) { return (double)NumJoint / (sqrt(LenFirNode * LenSecNode)); }
+  // Sorensen Index
+  else if (type == 3) { return 2.0 * NumJoint / (LenFirNode + LenSecNode); }
+  // Hub Promoted Index
+  else if (type == 4) {
+    if (LenFirNode < LenSecNode) { return 2.0 * NumJoint / LenFirNode; }
+    else { return 2.0 * NumJoint / LenSecNode; }
+  }
+  // Hub Depressed Index
+  else if (type == 5) {
+    if (LenFirNode < LenSecNode) { return 2.0 * NumJoint / LenSecNode; }
+    else { return 2.0 * NumJoint / LenFirNode; }
+  }
+  // Leicht-Holme-Newman Index
+  else if (type == 6) { return 2.0 * NumJoint / LenFirNode / LenSecNode; }
+  return 0.0;
+}
+
+void EGTCD::GenerateSecondOrderGraph(TIntSetV& Neighbor2, int TypeSecOrdProximity, double ThresGenSecOrdGraph) {
+  Neighbor2.resize(G.GetNumNodes()); // core dumped if the space is not pre-allocated.
+  NumEdges2 = 0;  
+  // allocate space for SecOrdProx
+  TDblVV SecOrdProx(G.GetNumNodes());
+  for(int NID = 1; NID <= SecOrdProx.size(); NID++) { SecOrdProx[NID-1].resize(SecOrdProx.size()-NID); }
+  
+#pragma omp parallel for
+  for (int NID1 = 1; NID1 < G.GetNumNodes(); NID1++) {
+    for (int NID2 = NID1+1; NID2 <= G.GetNumNodes(); NID2++) {
+      SecOrdProx[NID1-1][NID2-NID1-1] = NghBsdProx(NID1, NID2, TypeSecOrdProximity);
+    }
+  }
+  
+  for (int NID1 = 1; NID1 < G.GetNumNodes(); NID1++) {
+    for (int NID2 = NID1+1; NID2 <= G.GetNumNodes(); NID2++) {
+      if(SecOrdProx[NID1-1][NID2-NID1-1] > ThresGenSecOrdGraph) {
+        // construct a link when two nodes share at least one neighbor.
+        Neighbor2[NID1-1].insert(NID2); // this opearation can not be parallized
+        Neighbor2[NID2-1].insert(NID1);
+      }
+    }
+  }
+  for (int NID1 = 1; NID1 < G.GetNumNodes(); NID1++) { NumEdges2 += Neighbor2[NID1-1].size(); }
+  NumEdges2 = NumEdges2 / 2;
+  // cout << "Number of Edges in Second-Tier Graph: " << NumEdges2 << endl;
+}
+
+void EGTCD::VisualizeSecondOrderGraph() {
+  string SGmlFile = G.GetDataName() + "2.gml";
+  const char* GmlFile = SGmlFile.c_str();
+  ofstream foutG;
+  foutG.open(GmlFile);
+  foutG << "graph" << endl;
+  foutG << "[" << endl;
+  foutG << "  directed 0" << endl;
+  int i, j;
+  TIntSetV ClusInNode = G.GetClusInNode();
+  TIntSetIter it_set;
+  for (i = 0; i < G.GetNumNodes(); i++) {
+    foutG << "  node" << endl;
+    foutG << "  [" << endl;
+    foutG << "    id " << i + 1 << endl;
+    foutG << "    label " << "\"" << i + 1 << "\"" << endl;
+    // non-overlapping clusters
+    // if one node does not belong to any cluster, the flag equals 0;
+    it_set = ClusInNode[i].begin();
+    foutG << "    cluster " << "\"" << *it_set << "\"" << endl;
+    foutG << "  ]" << endl;
+  }
+  
+  for (i = 0; i < G.GetNumNodes(); i++) {
+  for (it_set = SecOrdNeighbor[i].begin(); it_set != SecOrdNeighbor[i].end(); it_set++) {
+      if (i < *it_set) {
+        foutG << "  edge" << endl;
+        foutG << "  [" << endl;
+        foutG << "    source " << i + 1 << endl;
+        foutG << "    target " << *it_set << endl;
+        foutG << "  ]" << endl;
+      }
+    }
+  }
+  foutG << "]" << endl;
+  foutG.close();
+}
+
+void EGTCD::OutputMetric(TDblVV MetricResults) {
+  TDblVV Data = MetricResults;
+  string SGmlFile = G.GetDataName() + ".MetricResults";
+  const char* GmlFile = SGmlFile.c_str();
+  ofstream foutG;
+  foutG.open(GmlFile);
+  int ind1, ind2;
+  for (ind1 = 0; ind1 < Data.size(); ind1++) {
+    for (ind2 = 0; ind2 < Data[ind1].size(); ind2++) { foutG << Data[ind1][ind2] << " "; }
+    foutG << endl;
+  }
+}
+
+void EGTCD::PlotMotivation() {
+  // for motivation plot
+  Initialization();
+  
+  // allocate space for NumJointNgh.
+  NumJointNgh.resize(G.GetNumNodes());
+  for(int NID = 1; NID <= NumJointNgh.size(); NID++) { NumJointNgh[NID-1].resize(NumJointNgh.size()-NID); }
+  // calculate NumJointNgh
+#pragma omp parallel for
+  for (int NID1 = 1; NID1 < G.GetNumNodes(); NID1++) {
+    //cout << "for parallization test: " << NID1 << endl;
+    for (int NID2 = NID1+1; NID2 <= G.GetNumNodes(); NID2++) {
+      NumJointNgh[NID1-1][NID2-NID1-1] = CalNumJointSets(G.GetNeighbor(NID1), G.GetNeighbor(NID2));
+    }
+  }
+  cout << "Calculation of Number of Joint Neighbors is fininshed!!!" << endl;
+  
+  TDblVV StoreMetric;
+  StoreMetric.resize(1000);
+  ClusterTest mytest; 
+  // Modularity-1st-order (no overlapping)
+  double Modul1 = mytest.CalNonOverlapModul(G.GetClusInClus(), G.GetClusInNode(), G.GetNeighbor(), G.GetNumEdges());
+  // Tightness-1st-order
+  double AdjTgt1 = mytest.CalAdjTgt(G.GetClusInClus(), G.GetClusInNode(), G.GetNeighbor());
+  cout << "Modul1= " << Modul1 << endl;
+  cout << "AdjTgt1= " << AdjTgt1 << endl;
+  StoreMetric[0].push_back(Modul1);
+  StoreMetric[0].push_back(AdjTgt1);
+  
+  for (TypeSecOrdProximity = 1; TypeSecOrdProximity <= 6; TypeSecOrdProximity++) {
+    if (TypeSecOrdProximity == 1) { printf("Second-order proximity: Jaccard Coefficient.\n"); }
+      else if (TypeSecOrdProximity == 2) { printf("Second-order proximity: Salton Index.\n"); }
+      else if (TypeSecOrdProximity == 3) { printf("Second-order proximity: Sorensen Index.\n");  }
+      else if (TypeSecOrdProximity == 4) { printf("Second-order proximity: Hub Promoted Index.\n"); }
+      else if (TypeSecOrdProximity == 5) { printf("Second-order proximity: Hub Depressed Index.\n"); }
+      else if (TypeSecOrdProximity == 6) { printf("Second-order proximity: Leicht-Holme-Newman Index.\n"); }
+    for (int IndThresGenSecOrdGraph = 0; IndThresGenSecOrdGraph < 100; IndThresGenSecOrdGraph++) {
+      ThresGenSecOrdGraph = IndThresGenSecOrdGraph / 100.0;
+      TIntSetV Neighbor2;
+      GenerateSecondOrderGraph(Neighbor2, TypeSecOrdProximity, ThresGenSecOrdGraph);
+      SecOrdNeighbor = Neighbor2;
+      int index = (TypeSecOrdProximity-1)*100 + IndThresGenSecOrdGraph;
+      cout << index+1 << ": ";
+      // Modularity-2nd-order (no overlapping)
+      StoreMetric[index+1].push_back(mytest.CalOverlapModul(G.GetClusInClus(), G.GetClusInNode(), Neighbor2, NumEdges2));
+      // Tightness-2nd-order
+      StoreMetric[index+1].push_back(mytest.CalAdjTgt(G.GetClusInClus(), G.GetClusInNode(), Neighbor2));
+      cout << StoreMetric[index][0] << " " << StoreMetric[index][1]<< endl;
+    }
+  }
+  OutputMetric(StoreMetric);
+  
+  // G.VisualizeGraph();
+  // VisualizeSecondOrderGraph();
+}
 
 int main(int argc, char **argv)
 {
@@ -908,14 +1135,19 @@ int main(int argc, char **argv)
   
   GRAPH myGraph(head); // initialize an object
   struct timeval tod1, tod2; // record time
-// Tools: SIMGT
-  cout << "========= " << "Node clustering by SIMGT." << "================== " << endl;
+// Tools: EGTCD
+  cout << "========= " << "Node clustering by EGTCD." << "================== " << endl;
   gettimeofday(&tod1, NULL);
-  SIMGT simgt(myGraph);
-  simgt.PeformSIMGT();
+  EGTCD egtcd(myGraph);
+  egtcd.PlotMotivation();
   gettimeofday(&tod2, NULL);
   cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
   cout << endl;
+  
+  
+  
+  
+  
  /*
 //Tools: Performance Test on nodes clustering
   cout << "========= " << "Performance test on nodes clustering." << "================== "<< endl;

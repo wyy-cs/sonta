@@ -13,5 +13,5 @@
 3. Generally, for the three-dimensional arrays (e.g., C), the first element C[0] only has one element C[0][0], storing "the number of two-dimensional arrays minus 1".
 
 # Commands:
-1. g++ sonta.cpp -o sonta
+1. g++ sonta.cpp -o sonta -fopenmp -std=c++11
 2. ./sonta name_dataset

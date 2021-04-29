@@ -1,25 +1,25 @@
+// g++ sonta.cpp -o sonta -fopenmp -std=c++11 
+// ./sonta DataName
 #include <stdio.h>
 #include <sys/time.h>
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <string.h>
-#include <vector>
 #include <cstdlib>
 #include <time.h> 
 #include <stdlib.h>
 #include <math.h>
-#include <map>
-#include <algorithm> 
 #include <vector>
+#include <set>
+#include <map>
+#include <queue>
+#include <iterator>
+#include <algorithm>
 #include <sstream>
 #include <sys/types.h>
-#include <iterator>
-#include <set>
 #include <unistd.h>
-#include <pthread.h>
 #include <assert.h>
-//g++ -fopenmp -std=c++11
 #ifdef USE_OPENMP
 #include <omp.h>
 #endif
@@ -38,7 +38,8 @@ typedef vector<pair<double, int> > TDblIntPrV;
 typedef set<int> TIntSet;
 typedef set<int>::iterator TIntSetIter;
 typedef set<double> TDblSet;
-
+typedef map<int, int> TIntIntMap;
+typedef queue<int> TIntQ;
 
 // record the cost time from tod1 to tod2
 long long int todiff(struct timeval* tod1, struct timeval* tod2) {
@@ -71,7 +72,7 @@ private:
   int LenNodeFea;
   /*-------cluster gt information---------*/
   // number of real clusters
-  int NumClus; 
+  int NumClus;
   // each set of corresponding node contains the cluster ids she belongs
   TIntSetV ClusInNode;
   // each set of corresponding cluster contains all nodes in this cluster
@@ -94,6 +95,12 @@ public:
   int GetNumEdges() { return NumEdges; }
   // get degree of a node
   int GetDeg(int NID) { return Neighbor[NID-1].size(); }
+  // get degree of all nodes
+  TIntV GetDegV() { 
+    TIntV DegAllNodes;
+    for (int NID = 1; NID <= GetNumNodes(); NID++) { DegAllNodes.push_back(GetDeg(NID)); } 
+    return DegAllNodes;
+  }
   
   // get a node's weight (single value)
   double GetWgtNode(int NID) { return WgtNodes[NID-1]; }
@@ -296,15 +303,102 @@ void GRAPH::FuncTest() {
 
 //////////////////////////////////
 ///////////////////////////////////////////////
+// class of evaluating a graph's basic characteristics
+// constructed in in 2021-01-16 by Yuyao Wang
+class EVALGRAPH {
+public:
+  TIntV GetMaxDeg(GRAPH G); // return index from 1 and maxvalue 
+  TIntV GetMinDeg(GRAPH G); // return index from 1 and minvalue 
+  int GetAvgDeg(GRAPH G); // return average degree of a graph
+  TIntIntMap GetDegreeDistribution(GRAPH G); // key is number of degree value, value is number of nodes
+  bool GetConnectivity(TIntSetV Neighbor, int TargetNode); // determine the connectivity of the graph
+}; 
+
+TIntV EVALGRAPH::GetMaxDeg(GRAPH G) {
+  TIntV DegAllNodes = G.GetDegV();
+  vector<int>::iterator MaxPos = max_element(DegAllNodes.begin(), DegAllNodes.end());
+  TIntV MaxPosValue;
+  MaxPosValue.push_back(distance(DegAllNodes.begin(), MaxPos) + 1); // position index, begin from 1
+  MaxPosValue.push_back(*MaxPos); // value
+  cout << "max degree, node-id: " << MaxPosValue[0] << ", value= " << MaxPosValue[1] << endl;
+  return MaxPosValue;
+}
+
+TIntV EVALGRAPH::GetMinDeg(GRAPH G) {
+  TIntV DegAllNodes = G.GetDegV();
+  vector<int>::iterator MinPos = min_element(DegAllNodes.begin(), DegAllNodes.end());
+  TIntV MinPosValue;
+  MinPosValue.push_back(distance(DegAllNodes.begin(), MinPos) + 1); // position index, begin from 1
+  MinPosValue.push_back(*MinPos); // value
+  cout << "min degree, node-id: " << MinPosValue[0] << ", value= " << MinPosValue[1] << endl;
+  return MinPosValue;
+}
+
+int EVALGRAPH::GetAvgDeg(GRAPH G) {
+  int SumDeg = 0;
+  for (int NID = 1; NID <= G.GetNumNodes(); NID++) { SumDeg += G.GetDeg(NID); }
+  SumDeg /= G.GetNumNodes();
+  cout << "average degree: " << SumDeg << endl;
+  return SumDeg;
+}
+
+TIntIntMap EVALGRAPH::GetDegreeDistribution(GRAPH G) {
+  TIntIntMap DegDistirb;
+  for (int NID = 1; NID <= G.GetNumNodes(); NID++) {
+    int NDeg = G.GetDeg(NID);
+    //cout << "Node-id: " << NID << ", Degree: " << NDeg << endl; 
+    TIntIntMap::iterator iter = DegDistirb.find(NDeg);
+    if (iter != DegDistirb.end()) {
+      DegDistirb[NDeg] = iter->second + 1; // if the key exists, corresponding value plus 1
+    } else {
+      DegDistirb.insert(pair<int, int>(NDeg, 1)); // add a new key if the key does not exist, set the value as 1
+    }
+  }
+  /*cout << endl;
+  for (TIntIntMap::iterator iter = DegDistirb.begin(); iter != DegDistirb.end(); iter++) { 
+    cout << "Degree: " << iter->first << ", Number: " << iter->second << endl; 
+  }*/
+  return DegDistirb;
+}
+
+bool EVALGRAPH::GetConnectivityBFS(TIntSetV Neighbor, int TargetNode) {
+  // BFS
+  TIntV Flag;
+  Flag.resize(Neighbor.size());
+  for (int i = 0; i < Flag.size(); i++) { Flag[i] = 0; }
+  queue<int> Q1;
+  Q1.push(TargetNode);
+  while (!Q1.empty()) {
+    int PushNode = Q1.front();
+    Q1.pop();
+    if (Flag[PushNode-1] == 0) { 
+      Flag[PushNode-1] = 1;
+      TIntSet TempNgh = Neighbor[PushNode-1];
+      for (TIntSetIter iter = TempNgh.begin(); iter != TempNgh.end(); ++iter) {
+        Q1.push(*iter);
+      }
+    }
+  }
+  int NumIterated = 0;
+  for (int j = 0; j < Flag.size(); j++) { NumIterated += Flag[j]; }
+  if (NumIterated==Flag.size()) {
+    return 1;
+  } else { return 0; }
+}
+
+//////////////////////////////////
+///////////////////////////////////////////////
 // class of evaluating nodes' centrality
 // constructed in in 2021-01-14 by Yuyao Wang
 class CENTRALITY {
 public:
   // conductance centrality of one node
-  double CondCtly(GRAPH G, int NID);
+  double CondOneNode(GRAPH G, int NID);
+  // conductance centrality of all nodes in a graph
+  TDblV CondAllNodes(GRAPH G);
 };
 
-double CENTRALITY::CondCtly(GRAPH G, int NID) {
+double CENTRALITY::CondOneNode(GRAPH G, int NID) {
 // conductance centrality (Gleich, et al. KDD12)
 // last modified in 2021-01-14 by Yuyao Wang
   double ImptNode = 0.0; // small value indicates an important node.
@@ -314,7 +408,7 @@ double CENTRALITY::CondCtly(GRAPH G, int NID) {
   int LenNghs = NghNId.size();
   if (LenNghs < 5) {
     ImptNode = 1.0;
-	return ImptNode;
+    return ImptNode;
   }
   int Edges2 = 2 * G.GetNumEdges();
   int Vol = 0,  Cut = 0;
@@ -337,32 +431,168 @@ double CENTRALITY::CondCtly(GRAPH G, int NID) {
   return ImptNode;
 }
 
+TDblV CENTRALITY::CondAllNodes(GRAPH G) {
+// conductance centrality of all nodes in a graph
+// small value indicates an important node.
+  TDblV Conductance;
+  for (int NID = 1; NID <= G.GetNumNodes(); NID++) {
+    Conductance.push_back(CondOneNode(G, NID));
+  }
+  return Conductance;
+}
+
 
 //////////////////////////////////
 ///////////////////////////////////////////////
 // class of file output
-// constructed in in 2021-01-14 by Yuyao Wang
-class OUTPUTCLASS {
+// constructed in 2021-01-14 by Yuyao Wang
+class IOCLASS {
 public:
-  // output a matrix (stored in T[X]VV)
-  template <class T> void OutputVV(string FileName, string Suffix, vector<vector<T> > Matrix);
-  // output a .gml file which can be fed into Cytoscape software for visualizing a graph
+  // input a TwoDimVV (stored in TIntVV).
+  void LoadIntVV(string DataName, string Suffix, TIntVV& TwoDimVV);
+  // input a TwoDimVV (stored in TDblVV).
+  void InputDblVV(string DataName, string Suffix, TDblVV& TwoDimVV);
+  
+public:
+  // output a vector (stored in T[X]V).
+  template <class T> void OutputVec(string FileName, string Suffix, vector<T> OneDimVec);
+  // output a set (stored in T[X]Set).
+  template <class T> void OutputSet(string FileName, string Suffix, set<T> OneDimSet);
+  // output a TwoDimVV (stored in T[X]VV).
+  template <class T> void OutputVV(string FileName, string Suffix, vector<vector<T> > TwoDimVV);
+  // output a TwoDimSetV (stored in T[X]SetV).
+  template <class T> void OutputSetV(string FileName, string Suffix, vector<set<T> > TwoDimSetV);
+  // output a map (stored in T[X][X]Map)
+  template <class T> void OutputMap(string FileName, string Suffix, map<T, T> FMap);
+  // output a .gml file which can be fed into Cytoscape software for visualizing a graph.
   void OutputGML(string DataName, TIntSetV Neighbor, TIntSetV ClusInNode);
 };
 
-template <class T> 
-void OUTPUTCLASS::OutputVV(string FileName, string Suffix, vector<vector<T> > Matrix) {
-  string SGmlFile = FileName + "." + Suffix;
-  const char* GmlFile = SGmlFile.c_str();
-  ofstream foutG;
-  foutG.open(GmlFile);
-  for (int ind1 = 0; ind1 < Matrix.size(); ind1++) {
-    for (int ind2 = 0; ind2 < Matrix[ind1].size(); ind2++) { foutG << Matrix[ind1][ind2] << " "; }
-    foutG << endl;
+void IOCLASS::LoadIntVV(string DataName, string Suffix, TIntVV& TwoDimVV) {
+  string FileName = DataName + "." + Suffix;
+  const char* CharFileName = FileName.c_str();
+  if (access(CharFileName, R_OK|W_OK) != 0) {
+    printf("No IntVV file exists, please check it!!!\n");
+    exit(0);
   }
+  ifstream finIntVV;
+  finIntVV.open(CharFileName);
+  string szLine;
+  TIntV TempV;
+  while(getline(finIntVV, szLine)) {
+    TStrV tData;
+    istringstream iss(szLine);
+    copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
+      TempV.push_back(atoi((*iter).c_str()));
+    }
+    TwoDimVV.push_back(TempV);
+    TempV.clear();  
+  }
+  finIntVV.close();
+  finIntVV.clear();
 }
 
-void OUTPUTCLASS::OutputGML(string FileName, TIntSetV Neighbor, TIntSetV ClusInNode) {
+void IOCLASS::InputDblVV(string DataName, string Suffix, TDblVV& TwoDimVV) {
+  string FileName = DataName + "." + Suffix;
+  const char* CharFileName = FileName.c_str();
+  if (access(CharFileName, R_OK|W_OK) != 0) {
+    printf("No DblVV file exists, please check it!!!\n");
+    exit(0);
+  }
+  ifstream finDblVV;
+  finDblVV.open(CharFileName);
+  string szLine;
+  TDblV TempV;
+  while(getline(finDblVV, szLine)) {
+    TStrV tData;
+    istringstream iss(szLine);
+    copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
+      TempV.push_back(atof((*iter).c_str()));
+    }
+    TwoDimVV.push_back(TempV);
+    TempV.clear();  
+  }
+  finDblVV.close();
+  finDblVV.clear();
+}
+
+template <class T> 
+void IOCLASS::OutputVec(string FileName, string Suffix, vector<T> OneDimVec) {
+// output a vector.
+  string FullName = FileName + "." + Suffix;
+  const char* File = FullName.c_str();
+  ofstream foutV;
+  foutV.open(File);
+  for (int ind1 = 0; ind1 < OneDimVec.size(); ind1++) { foutV << OneDimVec[ind1] << endl; }
+  foutV.close();
+  foutV.clear();
+}
+
+template <class T> 
+void IOCLASS::OutputSet(string FileName, string Suffix, set<T> OneDimSet) {
+// output a vector.
+  string FullName = FileName + "." + Suffix;
+  const char* File = FullName.c_str();
+  ofstream foutSet;
+  foutSet.open(File);
+  typename std::set<T>::iterator TempIter;
+  for (TempIter = OneDimSet.begin(); TempIter != OneDimSet.end(); TempIter++) {
+    foutSet << *TempIter << " ";
+  }
+  foutSet.close();
+  foutSet.clear();
+}
+
+template <class T> 
+void IOCLASS::OutputVV(string FileName, string Suffix, vector<vector<T> > TwoDimVV) {
+// output a TwoDimVV (stored in T[X]VV)
+  string FullName = FileName + "." + Suffix;
+  const char* File = FullName.c_str();
+  ofstream foutVV;
+  foutVV.open(File);
+  for (int ind1 = 0; ind1 < TwoDimVV.size(); ind1++) {
+    for (int ind2 = 0; ind2 < TwoDimVV[ind1].size(); ind2++) { foutVV << TwoDimVV[ind1][ind2] << " "; }
+    foutVV << endl;
+  }
+  foutVV.close();
+  foutVV.clear();
+}
+
+template <class T> 
+void IOCLASS::OutputSetV(string FileName, string Suffix, vector<set<T> > TwoDimSetV) {
+// output a TwoDimSetV (stored in T[X]SetV)
+  string FullName = FileName + "." + Suffix;
+  const char* File = FullName.c_str();
+  ofstream foutSetV;
+  foutSetV.open(File);
+  typename std::set<T>::iterator TempIter;
+  for (int ind1 = 0; ind1 < TwoDimSetV.size(); ind1++) {
+    for (TempIter = TwoDimSetV[ind1].begin(); TempIter != TwoDimSetV[ind1].end(); TempIter++) {
+      foutSetV << *TempIter << " ";
+    }
+  foutSetV << endl;
+  }
+  foutSetV.close();
+  foutSetV.clear();
+}
+
+template <class T>
+void IOCLASS::OutputMap(string FileName, string Suffix, map<T, T> FMap) {
+  string FullName = FileName + "." + Suffix;
+  const char* File = FullName.c_str();
+  ofstream foutMap;
+  foutMap.open(File);
+  typename std::map<T, T>::iterator TempIter;
+  for (TempIter = FMap.begin(); TempIter != FMap.end(); TempIter++) { 
+    foutMap << TempIter->first << " " << TempIter->second << endl; 
+  }
+  foutMap.close();
+  foutMap.clear();
+}
+
+void IOCLASS::OutputGML(string FileName, TIntSetV Neighbor, TIntSetV ClusInNode) {
 // visualize the graph (output a .gml file which can be fed into software named Cytoscape
   string SGmlFile = FileName + ".gml";
   const char* GmlFile = SGmlFile.c_str();
@@ -371,8 +601,8 @@ void OUTPUTCLASS::OutputGML(string FileName, TIntSetV Neighbor, TIntSetV ClusInN
   foutG << "graph" << endl;
   foutG << "[" << endl;
   foutG << "  directed 0" << endl;
-  int i, j;
   TIntSetIter it_set;
+  int i;
   for (i = 0; i < Neighbor.size(); i++) {
     foutG << "  node" << endl;
     foutG << "  [" << endl;
@@ -386,7 +616,7 @@ void OUTPUTCLASS::OutputGML(string FileName, TIntSetV Neighbor, TIntSetV ClusInN
   }
   
   for (i = 0; i < Neighbor.size(); i++) {
-  for (it_set = Neighbor[i].begin(); it_set != Neighbor[i].end(); it_set++) {
+    for (it_set = Neighbor[i].begin(); it_set != Neighbor[i].end(); it_set++) {
       if (i < *it_set) {
         foutG << "  edge" << endl;
         foutG << "  [" << endl;
@@ -398,7 +628,9 @@ void OUTPUTCLASS::OutputGML(string FileName, TIntSetV Neighbor, TIntSetV ClusInN
   }
   foutG << "]" << endl;
   foutG.close();
+  foutG.clear();
 }
+
 
 //////////////////////////////////
 ///////////////////////////////////////////////
@@ -456,7 +688,7 @@ public:
 };
 
 double ClusterTest::CalNonOverlapModul(TIntSetV Our1, TIntSetV Our2, TIntSetV neighbor, int num_edges) {
-// last checked and modified in 2021-01-13 by Yuyao Wang.
+// last modified in 2021-01-13 by Yuyao Wang.
 // calculate modularity of non-overlapping cluster structure. (Newman, PRE, 2004.)
 // each set in Our1 denotes a cluster, containing a set of nodes who belongs it.
 // each set in Our2 denotes a node, containing a set of clusters to which a specific node belongs.
@@ -502,7 +734,7 @@ double ClusterTest::CalNonOverlapModul(TIntSetV Our1, TIntSetV Our2, TIntSetV ne
 }
 
 double ClusterTest::CalOverlapModul(TIntSetV Our1, TIntSetV Our2, TIntSetV neighbor, int num_edges) {
-// last checked and modified in 2021-01-14 by Yuyao Wang.
+// last modified in 2021-01-14 by Yuyao Wang.
 // calculating modularity of overlapping and hierarchical cluster structure.(Huawei Shen, et al. Eqn.(2) in Physica A, 2009.)
 // each set in Our1 denotes a cluster, containing a set of nodes who belongs it.
 // each set in Our2 denotes a node, containing a set of clusters to which a specific node belongs.
@@ -541,7 +773,7 @@ double ClusterTest::CalOverlapModul(TIntSetV Our1, TIntSetV Our2, TIntSetV neigh
 }
 
 double ClusterTest::CalTgt(TIntSetV Our1, TIntSetV Our2, TIntSetV neighbor) {
-// last checked and modified in 2021-01-14 by Yuyao Wang.
+// last modified in 2021-01-14 by Yuyao Wang.
 // calculating tightness of cluster structure (Zhan Bu, et al. Information Fusion, 2017)
 // each set in Our1 denotes a cluster, containing a set of nodes who belongs it.
 // each set in Our2 denotes a node, containing a set of clusters to which a specific node belongs.
@@ -586,8 +818,8 @@ double ClusterTest::CalTgt(TIntSetV Our1, TIntSetV Our2, TIntSetV neighbor) {
 }
 
 double ClusterTest::CalAdjTgt(TIntSetV Our1, TIntSetV Our2, TIntSetV neighbor) {
-// last checked and modified in 2021-01-14 by Yuyao Wang.
-// calculating adjusted tightness of cluster structure (Bu, et al. Information Fusion, 2017)
+// last modified in 2021-01-14 by Yuyao Wang.
+// calculating adjusted tightness of cluster structure (Zhan Bu, et al. Information Fusion, 2017)
 // penalizing very small and very large clusters and produces well-balanced solutions
 // each set in Our1 denotes a cluster, containing a set of nodes who belongs it.
 // each set in Our2 denotes a node, containing a set of clusters to which a specific node belongs.
@@ -621,10 +853,10 @@ double ClusterTest::CalAdjTgt(TIntSetV Our1, TIntSetV Our2, TIntSetV neighbor) {
     // numInEdges[k] /= 2;
   }
   for (int k = 0; k < num_clusters; k++) {
-	if (Our1[k].empty() == 0) {
+    if (Our1[k].empty() == 0) {
       FirTerm = 2.0 * (num_nodes - Our1[k].size()) * numInEdges[k] /  (double)Our1[k].size();
       SinglTgt[k] = FirTerm - numOutEdges[k];
-	}
+    }
     SumTgt += SinglTgt[k];
   }
   return SumTgt;
@@ -757,10 +989,10 @@ double ClusterTest::CalARI(TIntSetV Our, TIntSetV GT, int num_nodes) {
   double numerator_1 = 0.0, numerator_2 = 0.0;
   for (i = 0; i < LenA; i++) {
     for (j = 0; j < LenB; j++) {
-	  TempVal = CalNumJointSets(Our[i], GT[j]);
-	  numerator_1 = numerator_1 + TempVal * (TempVal - 1.0) / 2.0;
-	}
-  }		
+      TempVal = CalNumJointSets(Our[i], GT[j]);
+      numerator_1 = numerator_1 + TempVal * (TempVal - 1.0) / 2.0;
+    }
+  }
   double TempVal_1 = 0.0;
   for (i = 0; i < LenA; i++) {
     TempVal_1 += Our[i].size() * (Our[i].size() - 1.0) / 2.0;

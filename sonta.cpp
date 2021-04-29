@@ -311,7 +311,7 @@ public:
   TIntV GetMinDeg(GRAPH G); // return index from 1 and minvalue 
   int GetAvgDeg(GRAPH G); // return average degree of a graph
   TIntIntMap GetDegreeDistribution(GRAPH G); // key is number of degree value, value is number of nodes
-  bool GetConnectivity(TIntSetV Neighbor, int TargetNode); // determine the connectivity of the graph
+  bool GetConnectivityBFS(TIntSetV Neighbor, int TargetNode); // determine the connectivity of the graph
 }; 
 
 TIntV EVALGRAPH::GetMaxDeg(GRAPH G) {

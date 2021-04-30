@@ -316,6 +316,8 @@ public:
   TIntIntMap GetDegreeDistribution(GRAPH G); // key is number of degree value, value is number of nodes
   bool GetConnectivityBFS(TIntSetV Neighbor, int TargetNode); // BFS for determining the connectivity of the graph
   bool GetConnectivityDFS(TIntSetV Neighbor, int TargetNode); // DFS for determining the connectivity of the graph
+  double GetOneNodeClusteringCoefficient(TIntSetV Neighbor, int TargetNode); // clustering coefficient of one node
+  double GetClusteringCoefficient(TIntSetV Neighbor); // clustering coefficient of whole graph (average of all nodes)
   
   void FuncTest(GRAPH G); // for function test
 }; 
@@ -421,6 +423,42 @@ bool EVALGRAPH::GetConnectivityDFS(TIntSetV Neighbor, int TargetNode) {
   }
 }
 
+double EVALGRAPH::GetOneNodeClusteringCoefficient(TIntSetV Neighbor, int TargetNode) {
+  double OneNodeClusCoeff = 0.0;
+  TIntSet TargetNgh = Neighbor[TargetNode-1];
+  int NumTargetNgh = TargetNgh.size();
+  int TotalEdges = NumTargetNgh * (NumTargetNgh-1); // for directed graph
+  if (TotalEdges==0) { return 0.0; }
+  TIntV TargetNghV;
+  for (TIntSetIter iter = TargetNgh.begin(); iter != TargetNgh.end(); iter++) {
+    TargetNghV.push_back(*iter);
+  }
+  int NumEdges = 0;
+  for (int i = 0; i < TargetNghV.size()-1; i++) {
+    for (int j = i+1; j < TargetNghV.size(); j++) {
+      // for directed graph
+      if (Neighbor[TargetNghV[i]-1].find(TargetNghV[j]) == Neighbor[TargetNghV[i]-1].end()) { NumEdges++; }
+      if (Neighbor[TargetNghV[j]-1].find(TargetNghV[i]) == Neighbor[TargetNghV[j]-1].end()) { NumEdges++; }
+    }
+  }
+  OneNodeClusCoeff = (double) NumEdges / (double) TotalEdges;
+  return OneNodeClusCoeff;
+}
+
+double EVALGRAPH::GetClusteringCoefficient(TIntSetV Neighbor) {
+  double TotalClusCoeff = 0.0;
+  if (Neighbor.size()==0) {
+    cout << "No topology information exists for computing clustering coefficient!!!!" << endl;
+    return 0.0; 
+  }
+  for (int NID = 1; NID <= Neighbor.size(); NID++) {
+    TotalClusCoeff += GetOneNodeClusteringCoefficient(Neighbor, NID);
+  }
+  double ClusCoeff = TotalClusCoeff / (double) Neighbor.size();
+  cout << "clustering coefficient = " << ClusCoeff << endl;
+  return ClusCoeff;
+}
+
 void EVALGRAPH::FuncTest(GRAPH G) {
   cout << "===========graph statistics==============" << endl;
   GetMaxDeg(G);
@@ -428,6 +466,7 @@ void EVALGRAPH::FuncTest(GRAPH G) {
   GetAvgDeg(G);
   GetConnectivityBFS(G.GetNeighbor(), 1);
   GetConnectivityDFS(G.GetNeighbor(), 1);
+  GetClusteringCoefficient(G.GetNeighbor());
   cout << "=========================================" << endl;
 }
 

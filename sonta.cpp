@@ -14,6 +14,7 @@
 #include <set>
 #include <map>
 #include <queue>
+#include <stack>
 #include <iterator>
 #include <algorithm>
 #include <sstream>
@@ -30,6 +31,7 @@ using namespace std;
 typedef vector<int> TIntV;
 typedef vector<double> TDblV;
 typedef vector<string> TStrV;
+typedef vector<bool> TBoolV;
 typedef vector<vector<int> > TIntVV;
 typedef vector<vector<double> > TDblVV;
 typedef vector<set<int> > TIntSetV;
@@ -39,7 +41,8 @@ typedef set<int> TIntSet;
 typedef set<int>::iterator TIntSetIter;
 typedef set<double> TDblSet;
 typedef map<int, int> TIntIntMap;
-typedef queue<int> TIntQ;
+typedef queue<int> TIntQueqe;
+typedef stack<int> TIntStack;
 
 // record the cost time from tod1 to tod2
 long long int todiff(struct timeval* tod1, struct timeval* tod2) {
@@ -311,7 +314,10 @@ public:
   TIntV GetMinDeg(GRAPH G); // return index from 1 and minvalue 
   int GetAvgDeg(GRAPH G); // return average degree of a graph
   TIntIntMap GetDegreeDistribution(GRAPH G); // key is number of degree value, value is number of nodes
-  bool GetConnectivityBFS(TIntSetV Neighbor, int TargetNode); // determine the connectivity of the graph
+  bool GetConnectivityBFS(TIntSetV Neighbor, int TargetNode); // BFS for determining the connectivity of the graph
+  bool GetConnectivityDFS(TIntSetV Neighbor, int TargetNode); // DFS for determining the connectivity of the graph
+  
+  void FuncTest(GRAPH G); // for function test
 }; 
 
 TIntV EVALGRAPH::GetMaxDeg(GRAPH G) {
@@ -363,9 +369,7 @@ TIntIntMap EVALGRAPH::GetDegreeDistribution(GRAPH G) {
 
 bool EVALGRAPH::GetConnectivityBFS(TIntSetV Neighbor, int TargetNode) {
   // BFS
-  TIntV Flag;
-  Flag.resize(Neighbor.size());
-  for (int i = 0; i < Flag.size(); i++) { Flag[i] = 0; }
+  TBoolV Flag(Neighbor.size(), false);
   queue<int> Q1;
   Q1.push(TargetNode);
   while (!Q1.empty()) {
@@ -382,9 +386,51 @@ bool EVALGRAPH::GetConnectivityBFS(TIntSetV Neighbor, int TargetNode) {
   int NumIterated = 0;
   for (int j = 0; j < Flag.size(); j++) { NumIterated += Flag[j]; }
   if (NumIterated==Flag.size()) {
+    cout << "This is a connected graph!!! (BFS)" << endl;
     return 1;
-  } else { return 0; }
+  } else { 
+    cout << "This is not a connected graph!!! (BFS)" << endl;
+    return 0;
+  }
 }
+
+bool EVALGRAPH::GetConnectivityDFS(TIntSetV Neighbor, int TargetNode) {
+  // DFS
+  TBoolV Flag(Neighbor.size(), false);
+  stack<int> S1;
+  S1.push(TargetNode);
+  while (!S1.empty()) {
+    int PushNode = S1.top();
+    S1.pop();
+    if (Flag[PushNode-1] == 0) { 
+      Flag[PushNode-1] = 1;
+      TIntSet TempNgh = Neighbor[PushNode-1];
+      for (TIntSetIter iter = TempNgh.begin(); iter != TempNgh.end(); ++iter) {
+        S1.push(*iter);
+      }
+    }
+  }
+  int NumIterated = 0;
+  for (int j = 0; j < Flag.size(); j++) { NumIterated += Flag[j]; }
+  if (NumIterated==Flag.size()) {
+    cout << "This is a connected graph!!! (DFS)" << endl;
+    return 1;
+  } else {
+    cout << "This is not a connected graph!!! (DFS)" << endl;
+    return 0; 
+  }
+}
+
+void EVALGRAPH::FuncTest(GRAPH G) {
+  cout << "===========graph statistics==============" << endl;
+  GetMaxDeg(G);
+  GetMinDeg(G);
+  GetAvgDeg(G);
+  GetConnectivityBFS(G.GetNeighbor(), 1);
+  GetConnectivityDFS(G.GetNeighbor(), 1);
+  cout << "=========================================" << endl;
+}
+
 
 //////////////////////////////////
 ///////////////////////////////////////////////
@@ -1052,7 +1098,7 @@ void SIMGT::NeighborComInit() {
   // compute conductance of neighborhood community
   CENTRALITY myCentrality;
   for (int NId = 1; NId <= F.size(); NId++) {
-	double Phi = myCentrality.CondCtly(G, NId);
+	double Phi = myCentrality.CondOneNode(G, NId);
     NIdPhiV.push_back(make_pair(Phi, NId));
   }
   sort(NIdPhiV.begin(), NIdPhiV.end());
@@ -1250,10 +1296,28 @@ void EGTCD::PlotMotivation() {
     cout << endl;
   }
   
-  OUTPUTCLASS myOutput;
+  IOCLASS myOutput;
   myOutput.OutputVV(G.GetDataName(), "MetricResults", StoreMetric);
   string DataName = G.GetDataName() + "2";
   myOutput.OutputGML(DataName, Neighbor2, G.GetClusInNode());
+}
+
+
+////////////////////
+//////////////////////////////
+class FUNCTIONTEST {
+private:
+  GRAPH G;
+public:
+  FUNCTIONTEST(GRAPH graph): G(graph.GetDataName()) {}
+  void PerformTest();
+};
+
+void FUNCTIONTEST::PerformTest() {
+  G.LoadGraphTpl(); // load .graph file (pure directed graph)
+  printf("Number of Nodes: %d, Number of edges: %d\n", G.GetNumNodes(), G.GetNumEdges());
+  EVALGRAPH EvalGraph;
+  EvalGraph.FuncTest(G);
 }
 
 int main(int argc, char **argv)
@@ -1266,40 +1330,12 @@ int main(int argc, char **argv)
   
   GRAPH myGraph(head); // initialize an object
   struct timeval tod1, tod2; // record time
-// Tools: EGTCD
-  cout << "========= " << "Node clustering by EGTCD." << "================== " << endl;
   gettimeofday(&tod1, NULL);
-  EGTCD egtcd(myGraph);
-  egtcd.PlotMotivation();
+  FUNCTIONTEST FuncTest(myGraph);
+  FuncTest.PerformTest();
   gettimeofday(&tod2, NULL);
   cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
   cout << endl;
-  
-  
-  
-  
-  
- /*
-//Tools: Performance Test on nodes clustering
-  cout << "========= " << "Performance test on nodes clustering." << "================== "<< endl;
-  ClusterTest mytest;
-  gettimeofday(&tod1, NULL);
-  // no gt
-  cout << "##### no ground-truth information:" << endl;
-  cout << "Modularity (no overlapping) = " << mytest.CalNonOverlapModul(mygraph.GetClusInClus(), mygraph.GetClusInNode(), mygraph.GetNeighbor(), mygraph.GetNumEdges()) << endl;
-  cout << "Modularity (overlapping) = " << mytest.CalOverlapModul(mygraph.GetClusInClus(), mygraph.GetClusInNode(), mygraph.GetNeighbor(), mygraph.GetNumEdges()) << endl;
-  cout << "Tightness = " << mytest.CalTgt(mygraph.GetClusInClus(), mygraph.GetClusInNode(), mygraph.GetNeighbor()) << endl;
-  cout << "Adjusted Tightness = " << mytest.CalAdjTgt(mygraph.GetClusInClus(), mygraph.GetClusInNode(), mygraph.GetNeighbor()) << endl;
-  cout << endl;
-  // with gt
-  cout << "##### with ground-truth information:" << endl;
-  cout << "AvgF1 = " << mytest.CalAvgF1(mygraph.GetClusInClus(), mygraph.GetClusInClus()) << endl;
-  cout << "NMI = " << mytest.CalNMI(mygraph.GetClusInClus(), mygraph.GetClusInClus(), mygraph.GetNumNodes()) << endl;
-  cout << "Omega Index = " << mytest.CalOmegaIndex(mygraph.GetClusInNode(), mygraph.GetClusInNode(), mygraph.GetNumNodes()) << endl;
-  cout << "ARI = " << mytest.CalARI(mygraph.GetClusInClus(), mygraph.GetClusInClus(), mygraph.GetNumNodes()) << endl;
-  gettimeofday(&tod2, NULL);
-  cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
-  cout << endl;*/
 
   return 0;
 }

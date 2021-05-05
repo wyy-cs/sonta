@@ -21,6 +21,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <assert.h>
+#include <climits>
 #ifdef USE_OPENMP
 #include <omp.h>
 #endif
@@ -41,8 +42,9 @@ typedef set<int> TIntSet;
 typedef set<int>::iterator TIntSetIter;
 typedef set<double> TDblSet;
 typedef map<int, int> TIntIntMap;
-typedef queue<int> TIntQueqe;
+typedef queue<int> TIntQueue;
 typedef stack<int> TIntStack;
+typedef pair<int, int> TIntPair;
 
 // record the cost time from tod1 to tod2
 long long int todiff(struct timeval* tod1, struct timeval* tod2) {
@@ -73,6 +75,8 @@ private:
   TIntVV BinNodeFea;
   // length of feature of nodes when each node is associated with a vector
   int LenNodeFea;
+  // values on edges (each edge is associated weith a single double value), NumNodes*NumNodes
+  TDblVV WgtEdges;
   /*-------cluster gt information---------*/
   // number of real clusters
   int NumClus;
@@ -168,7 +172,7 @@ void GRAPH::LoadGraphTpl() {
   NumEdges = 0;
   for (int i = 0; i < Neighbor.size(); i++) { NumEdges += Neighbor[i].size(); }
   // each edge is twicely recorded (undirected graph)
-  NumEdges /= 2;
+  // NumEdges /= 2;
 }
 
 // load a graph node feature information
@@ -318,6 +322,8 @@ public:
   bool GetConnectivityDFS(TIntSetV Neighbor, int TargetNode); // DFS for determining the connectivity of the graph
   double GetOneNodeClusteringCoefficient(TIntSetV Neighbor, int TargetNode); // clustering coefficient of one node
   double GetClusteringCoefficient(TIntSetV Neighbor); // clustering coefficient of whole graph (average of all nodes)
+  TIntV GetShortestPathDijkstra(GRAPH G, int TargetNode); // shortest path using SPFA technique
+  double GetAverageShortestPathDijkstra(GRAPH G); // average shortest path using SPFA technique 
   
   void FuncTest(GRAPH G); // for function test
 }; 
@@ -455,18 +461,69 @@ double EVALGRAPH::GetClusteringCoefficient(TIntSetV Neighbor) {
     TotalClusCoeff += GetOneNodeClusteringCoefficient(Neighbor, NID);
   }
   double ClusCoeff = TotalClusCoeff / (double) Neighbor.size();
-  cout << "clustering coefficient = " << ClusCoeff << endl;
+  cout << "Average clustering coefficient = " << ClusCoeff << endl;
   return ClusCoeff;
 }
 
+TIntV EVALGRAPH::GetShortestPathDijkstra(GRAPH G, int TargetNode) {
+  TIntV DistanceTable(G.GetNumNodes(), INT_MAX);
+  DistanceTable[TargetNode-1] = 0;
+  priority_queue<TIntPair, vector<TIntPair>, greater<TIntPair> > Q1;
+  TBoolV Visit(G.GetNumNodes(), false);
+  Q1.push(make_pair(DistanceTable[TargetNode-1], TargetNode));
+  while(!Q1.empty()) {
+    TIntPair PushNode = Q1.top();
+    Q1.pop();
+    int PushNodeId = PushNode.second;
+    if(Visit[PushNodeId-1]) { continue; }
+    Visit[PushNodeId-1] = true;
+    TIntSet TempNgh = G.GetNeighbor(PushNodeId);
+    for (TIntSetIter iter = TempNgh.begin(); iter != TempNgh.end(); iter++) {
+      // weight of all edges equals to 1.
+      if (!Visit[*iter-1] && DistanceTable[PushNodeId-1] + 1 < DistanceTable[*iter-1]) {
+        DistanceTable[*iter-1] = DistanceTable[PushNodeId-1] + 1;
+        Q1.push(make_pair(DistanceTable[*iter-1], *iter));
+      }
+    }
+  }
+  /*cout << "Target Node: " << TargetNode << endl;
+  for (int i = 1; i <= G.GetNumNodes(); i++) {
+    cout << TargetNode << "-->" <<i << ": " << DistanceTable[i-1] << endl;
+  }*/
+  return DistanceTable;
+}
+
+double EVALGRAPH::GetAverageShortestPathDijkstra(GRAPH G) {
+  double TotalValue = 0.0;
+  int NumEdges = 0;
+  int Diameter = 0; // network diameter (longest shortest path)
+  for (int NID1 = 1; NID1 <= G.GetNumNodes(); NID1++) {
+    // directed graph
+    TIntV ShortestPathOneNode = GetShortestPathDijkstra(G, NID1);
+    for (int NID2 = 1; NID2 <= G.GetNumNodes(); NID2++) {
+      if (ShortestPathOneNode[NID2-1] != INT_MAX) {
+        NumEdges++;
+        TotalValue += ShortestPathOneNode[NID2-1];
+        if (ShortestPathOneNode[NID2-1] > Diameter) { Diameter = ShortestPathOneNode[NID2-1]; }
+      }
+    }
+  }
+  cout << "Average shortest path (Dijkstra with priority_queue) = " << TotalValue / (double) NumEdges << endl;
+  cout << "Diameter (longest shortest path) = " << Diameter;
+  return TotalValue / (double) NumEdges;
+}
+
 void EVALGRAPH::FuncTest(GRAPH G) {
+  cout << endl;
   cout << "===========graph statistics==============" << endl;
   GetMaxDeg(G);
   GetMinDeg(G);
   GetAvgDeg(G);
   GetConnectivityBFS(G.GetNeighbor(), 1);
-  GetConnectivityDFS(G.GetNeighbor(), 1);
+  // GetConnectivityDFS(G.GetNeighbor(), 1);
   GetClusteringCoefficient(G.GetNeighbor());
+  GetAverageShortestPathDijkstra(G);
+  cout << endl;
   cout << "=========================================" << endl;
 }
 

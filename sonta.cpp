@@ -38,10 +38,13 @@ typedef vector<vector<double> > TDblVV;
 typedef vector<set<int> > TIntSetV;
 typedef vector<set<double> > TDblSetV;
 typedef vector<pair<double, int> > TDblIntPrV;
+typedef vector<set<pair<int, double> > > TIntDblPairSetV;
 typedef set<int> TIntSet;
 typedef set<int>::iterator TIntSetIter;
 typedef set<double> TDblSet;
+typedef set<string> TStrSet;
 typedef map<int, int> TIntIntMap;
+typedef map<string, int> TStrIntMap;
 typedef queue<int> TIntQueue;
 typedef stack<int> TIntStack;
 typedef pair<int, int> TIntPair;
@@ -54,6 +57,401 @@ long long int todiff(struct timeval* tod1, struct timeval* tod2) {
   return t1 - t2;
 }
 
+
+//////////////////////////////////
+///////////////////////////////////////////////
+// class of file input/output
+class IOCLASS {
+public:
+  // input a TwoDimVV (stored in TIntVV).
+  void LoadIntVV(string DataName, string Suffix, TIntVV& TwoDimVV);
+  // input a TwoDimVV (stored in TDblVV).
+  void InputDblVV(string DataName, string Suffix, TDblVV& TwoDimVV);
+  
+public:
+  // output a vector (stored in T[X]V).
+  template <class T> void OutputVec(string FileName, string Suffix, vector<T> OneDimVec);
+  // output a set (stored in T[X]Set).
+  template <class T> void OutputSet(string FileName, string Suffix, set<T> OneDimSet);
+  // output a TwoDimVV (stored in T[X]VV).
+  template <class T> void OutputVV(string FileName, string Suffix, vector<vector<T> > TwoDimVV);
+  // output a TwoDimSetV (stored in T[X]SetV).
+  template <class T> void OutputSetV(string FileName, string Suffix, vector<set<T> > TwoDimSetV);
+  // output a map (stored in T[X][X]Map)
+  template <class T> void OutputMap(string FileName, string Suffix, map<T, T> FMap);
+  // output a .gml file which can be fed into Cytoscape software for visualizing a graph.
+  void OutputGML(string DataName, TIntSetV Neighbor, TIntSetV ClusInNode);
+};
+
+void IOCLASS::LoadIntVV(string DataName, string Suffix, TIntVV& TwoDimVV) {
+  string FileName = DataName + "." + Suffix;
+  const char* CharFileName = FileName.c_str();
+  if (access(CharFileName, R_OK|W_OK) != 0) {
+    printf("No IntVV file exists, please check it!!!\n");
+    exit(0);
+  }
+  ifstream finIntVV;
+  finIntVV.open(CharFileName);
+  string szLine;
+  TIntV TempV;
+  while(getline(finIntVV, szLine)) {
+    TStrV tData;
+    istringstream iss(szLine);
+    copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
+      TempV.push_back(atoi((*iter).c_str()));
+    }
+    TwoDimVV.push_back(TempV);
+    TempV.clear();  
+  }
+  finIntVV.close();
+  finIntVV.clear();
+}
+
+void IOCLASS::InputDblVV(string DataName, string Suffix, TDblVV& TwoDimVV) {
+  string FileName = DataName + "." + Suffix;
+  const char* CharFileName = FileName.c_str();
+  if (access(CharFileName, R_OK|W_OK) != 0) {
+    printf("No DblVV file exists, please check it!!!\n");
+    exit(0);
+  }
+  ifstream finDblVV;
+  finDblVV.open(CharFileName);
+  string szLine;
+  TDblV TempV;
+  while(getline(finDblVV, szLine)) {
+    TStrV tData;
+    istringstream iss(szLine);
+    copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
+      TempV.push_back(atof((*iter).c_str()));
+    }
+    TwoDimVV.push_back(TempV);
+    TempV.clear();  
+  }
+  finDblVV.close();
+  finDblVV.clear();
+}
+
+template <class T> 
+void IOCLASS::OutputVec(string FileName, string Suffix, vector<T> OneDimVec) {
+// output a vector.
+  string FullName = FileName + "." + Suffix;
+  const char* File = FullName.c_str();
+  ofstream foutV;
+  foutV.open(File);
+  for (int ind1 = 0; ind1 < OneDimVec.size(); ind1++) { foutV << OneDimVec[ind1] << endl; }
+  foutV.close();
+  foutV.clear();
+}
+
+template <class T> 
+void IOCLASS::OutputSet(string FileName, string Suffix, set<T> OneDimSet) {
+// output a vector.
+  string FullName = FileName + "." + Suffix;
+  const char* File = FullName.c_str();
+  ofstream foutSet;
+  foutSet.open(File);
+  typename std::set<T>::iterator TempIter;
+  for (TempIter = OneDimSet.begin(); TempIter != OneDimSet.end(); TempIter++) {
+    foutSet << *TempIter << " ";
+  }
+  foutSet.close();
+  foutSet.clear();
+}
+
+template <class T> 
+void IOCLASS::OutputVV(string FileName, string Suffix, vector<vector<T> > TwoDimVV) {
+// output a TwoDimVV (stored in T[X]VV)
+  string FullName = FileName + "." + Suffix;
+  const char* File = FullName.c_str();
+  ofstream foutVV;
+  foutVV.open(File);
+  for (int ind1 = 0; ind1 < TwoDimVV.size(); ind1++) {
+    for (int ind2 = 0; ind2 < TwoDimVV[ind1].size(); ind2++) { foutVV << TwoDimVV[ind1][ind2] << " "; }
+    foutVV << endl;
+  }
+  foutVV.close();
+  foutVV.clear();
+}
+
+template <class T> 
+void IOCLASS::OutputSetV(string FileName, string Suffix, vector<set<T> > TwoDimSetV) {
+// output a TwoDimSetV (stored in T[X]SetV)
+  string FullName = FileName + "." + Suffix;
+  const char* File = FullName.c_str();
+  ofstream foutSetV;
+  foutSetV.open(File);
+  typename std::set<T>::iterator TempIter;
+  for (int ind1 = 0; ind1 < TwoDimSetV.size(); ind1++) {
+    for (TempIter = TwoDimSetV[ind1].begin(); TempIter != TwoDimSetV[ind1].end(); TempIter++) {
+      foutSetV << *TempIter << " ";
+    }
+  foutSetV << endl;
+  }
+  foutSetV.close();
+  foutSetV.clear();
+}
+
+template <class T>
+void IOCLASS::OutputMap(string FileName, string Suffix, map<T, T> FMap) {
+  string FullName = FileName + "." + Suffix;
+  const char* File = FullName.c_str();
+  ofstream foutMap;
+  foutMap.open(File);
+  typename std::map<T, T>::iterator TempIter;
+  for (TempIter = FMap.begin(); TempIter != FMap.end(); TempIter++) { 
+    foutMap << TempIter->first << " " << TempIter->second << endl; 
+  }
+  foutMap.close();
+  foutMap.clear();
+}
+
+void IOCLASS::OutputGML(string FileName, TIntSetV Neighbor, TIntSetV ClusInNode) {
+// visualize the graph (output a .gml file which can be fed into software named Cytoscape
+  string SGmlFile = FileName + ".gml";
+  const char* GmlFile = SGmlFile.c_str();
+  ofstream foutG;
+  foutG.open(GmlFile);
+  foutG << "graph" << endl;
+  foutG << "[" << endl;
+  foutG << "  directed 0" << endl;
+  TIntSetIter it_set;
+  int i;
+  for (i = 0; i < Neighbor.size(); i++) {
+    foutG << "  node" << endl;
+    foutG << "  [" << endl;
+    foutG << "    id " << i + 1 << endl;
+    foutG << "    label " << "\"" << i + 1 << "\"" << endl;
+    // non-overlapping clusters
+    // if one node does not belong to any cluster, the flag equals 0;
+    it_set = ClusInNode[i].begin();
+    foutG << "    cluster " << "\"" << *it_set << "\"" << endl;
+    foutG << "  ]" << endl;
+  }
+  
+  for (i = 0; i < Neighbor.size(); i++) {
+    for (it_set = Neighbor[i].begin(); it_set != Neighbor[i].end(); it_set++) {
+      if (i < *it_set) {
+        foutG << "  edge" << endl;
+        foutG << "  [" << endl;
+        foutG << "    source " << i + 1 << endl;
+        foutG << "    target " << *it_set << endl;
+        foutG << "  ]" << endl;
+      }
+    }
+  }
+  foutG << "]" << endl;
+  foutG.close();
+  foutG.clear();
+}
+
+
+//////////////////////////////////
+///////////////////////////////////////////////
+// class of graph file IO
+class GRAPHIOCLASS {
+public:
+  void LoadPureEdgeSetGraph(string DataName, string Suffix, TIntSetV& Neighbor, TStrIntMap& NameNID, bool Verbose);
+  void LoadPureAdjListGraph(string DataName, string Suffix, int Type, TIntSetV& Neighbor, TStrIntMap& NameNID, bool Verbose);
+  //void LoadNodeFea();
+  //void LoadClusGt();
+};
+
+void GRAPHIOCLASS::LoadPureEdgeSetGraph(string DataName, string Suffix, TIntSetV& Neighbor, TStrIntMap& NameNID, bool Verbose) {
+  string SGraphFile = DataName + Suffix;
+  const char* GraphFile = SGraphFile.c_str();
+  if (access(GraphFile, R_OK|W_OK) != 0) {
+    printf("No topology file exists, please check it!!!\n");
+    exit(0);
+  }
+  ifstream finG, finG1;
+  finG.open(GraphFile);
+  string szLine;
+  TStrSet NameSet;
+  int NumNodePair = 0;
+  while (getline(finG, szLine)) {
+    NumNodePair++;
+    TStrV tData;
+    istringstream iss(szLine);
+    copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
+      NameSet.insert(*iter);
+    }
+  }
+  finG.close();
+  finG.clear();
+  
+  Neighbor.resize(NameSet.size());
+  int TempNId = 1;
+  for (set<string>::iterator iter = NameSet.begin(); iter != NameSet.end(); iter++) {
+   // rename node
+     NameNID.insert(pair<string, int>(*iter, TempNId));
+     TempNId++;
+  }
+  
+  finG1.open(GraphFile);
+  while (getline(finG1, szLine)) {
+    TStrV tData;
+    istringstream iss(szLine);
+    copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    // begin-node
+    TStrV::iterator iter1 = tData.begin();
+    int NID1 = NameNID.at(*iter1);
+    // end-node
+    TStrV::iterator iter2 = iter1++;
+    int NID2 = NameNID.at(*iter2);
+    // add edge
+    Neighbor[NID1-1].insert(NID2);
+  }
+  finG1.close();
+  finG1.clear();
+  
+  if (Verbose) {
+    cout << "=================Topology Data Load Information===================" << endl;
+    cout << "Found number of nodes in topology file: " << NameSet.size() << endl;
+    cout << "Loaded total Node pairs: " << NumNodePair << endl;
+    cout << "Reminder-1: All nodes are renamed from 1, and the network topology is stored in a vector<set<int> > structure." << endl;
+    cout << "Reminder-2: one existed self-loop edge for any node is kept!!!" << endl;
+    cout << "Reminder-3: replicated edges between any node pair are merged into one record!!!" << endl;
+    cout << "====================================" << endl;
+  }
+}
+
+void GRAPHIOCLASS::LoadPureAdjListGraph(string DataName, string Suffix, int TypeAdjList, TIntSetV& Neighbor, TStrIntMap& NameNID, bool Verbose) {
+ // for the load file, each line list a node's neighbor set.
+ // TypeAdjList=1) first value of each line denotes target node, while the other values denotes its neighbors;
+ //            =2) all values of each line denote the neighbors of target node, target node is line number that is from 1;
+ //            =3) all values of each line denote the neighbors of target node, target node is line number that is from 0;
+  string SGraphFile = DataName + Suffix;
+  const char* GraphFile = SGraphFile.c_str();
+  if (access(GraphFile, R_OK|W_OK) != 0) {
+    printf("No topology file exists, please check it!!!\n");
+    exit(0);
+  }
+  ifstream finG, finG1;
+  finG.open(GraphFile);
+  string szLine;
+  TStrSet NameSet;
+  while (getline(finG, szLine)) {
+    TStrV tData;
+    istringstream iss(szLine);
+    copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
+      NameSet.insert(*iter);
+    }
+  }
+  finG.close();
+  finG.clear();
+  
+  Neighbor.resize(NameSet.size());
+  int TempNId = 1;
+  for (set<string>::iterator iter = NameSet.begin(); iter != NameSet.end(); iter++) {
+   // rename node
+     NameNID.insert(pair<string, int>(*iter, TempNId));
+     TempNId++;
+  }
+  
+  if (Verbose) {
+    cout << "=================Topology Data Load Information===================" << endl;
+    cout << "Reminder-1: All nodes are renamed from 1." << endl;
+    cout << "Reminder-2: Replicated edges between any node pair are merged into one record!!!" << endl;
+    cout << "====================================" << endl;
+  }
+  
+  if (TypeAdjList==1) {
+    // TypeAdjList=1) first value of each line denotes target node, while the other values denotes its neighbors
+    finG1.open(GraphFile);
+    int NumLine = 0;
+    int NumIsolatedNode = 0;
+    while (getline(finG1, szLine)) {
+      if (szLine.size() == 1) {
+        NumIsolatedNode++;
+        NumLine++;
+        continue;
+      }
+      NumLine++;
+      TStrV tData;
+      istringstream iss(szLine);
+      copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+      TStrV::iterator iter1 = tData.begin();
+      int TargetNId = NameNID.at(*iter1);
+      for (TStrV::iterator iter = ++iter1; iter != tData.end(); ++iter) { 
+        int NeighborNId = NameNID.at(*iter);
+        Neighbor[TargetNId-1].insert(NeighborNId);
+      }
+    }
+    finG1.close();
+    finG1.clear();
+    if (Verbose) {
+      cout << NumLine << " lines are processed." << endl;
+      cout << NumIsolatedNode << " isolated nodes are removed." << endl;
+      cout << NumLine-NumIsolatedNode << " nodes are kept." << endl;
+    }
+  }
+  
+  if (TypeAdjList==2) {
+    // TypeAdjList=2) all values of each line denote the neighbors of target node, target node is the line number that is from 1;
+    finG1.open(GraphFile);
+    int NumLine = 0;
+    int NumIsolatedNode = 0;
+    while (getline(finG1, szLine)) {
+      string StrNumLine = to_string(++NumLine);
+      if (szLine.size() == 0) { 
+        NumIsolatedNode++;
+        continue;
+        }
+      TStrV tData;
+      istringstream iss(szLine);
+      copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+      int TargetNId = NameNID.at(StrNumLine);
+      for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
+        int NeighborNId = NameNID.at(*iter);
+        Neighbor[TargetNId-1].insert(NeighborNId); 
+      }
+    }
+    finG1.close();
+    finG1.clear();
+    if (Verbose) {
+      cout << NumLine << " lines are processed, ";
+      cout << NumIsolatedNode << " isolated nodes are removed, ";
+      cout << NumLine-NumIsolatedNode << " nodes are kept." << endl;
+    }
+  }
+  
+  if (TypeAdjList==3) {
+    // TypeAdjList=3) all values of each line denote the neighbors of target node, target node is the line number that is from 0;
+    finG1.open(GraphFile);
+    int NumLine = 0;
+    int NumIsolatedNode = 0;
+    while (getline(finG1, szLine)) {
+      if (szLine.size() == 0) { 
+        NumIsolatedNode++;
+        NumLine++;
+        continue; 
+      }
+      string StrNumLine = to_string(NumLine);
+      TStrV tData;
+      istringstream iss(szLine);
+      copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+      int TargetNId = NameNID.at(StrNumLine);
+      for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
+        int NeighborNId = NameNID.at(*iter);
+        Neighbor[TargetNId-1].insert(NeighborNId);
+      }
+      NumLine++;
+    }
+    finG1.close();
+    finG1.clear();
+    if (Verbose) {
+      cout << NumLine << " lines are processed." << endl;
+      cout << NumIsolatedNode << " isolated nodes are removed." << endl;
+      cout << NumLine-NumIsolatedNode << " nodes are kept." << endl;
+    }
+  }
+}
+
+
 ///////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 // basic graph class
@@ -61,6 +459,10 @@ class GRAPH {
 private:
   // dataset name (do not contain the suffix name)
   string DataName;
+  // 0): undirected graph, 1):directed graph
+  bool Dir;
+  // correspondence between nodes' new id and their original name
+  TStrIntMap NameNID;
   /*---------basic topology-----------*/
   // network topology, each set of corresponding node contains its all neighbors
   TIntSetV Neighbor;
@@ -75,8 +477,8 @@ private:
   TIntVV BinNodeFea;
   // length of feature of nodes when each node is associated with a vector
   int LenNodeFea;
-  // values on edges (each edge is associated weith a single double value), NumNodes*NumNodes
-  TDblVV WgtEdges;
+  // values on edges (each edge is associated weith a single double value)
+  TIntDblPairSetV WgtEdges;
   /*-------cluster gt information---------*/
   // number of real clusters
   int NumClus;
@@ -92,7 +494,7 @@ public:
   string GetDataName() { return DataName; }
   
   // load a graph (directed) with topology information
-  void LoadGraphTpl();
+  void LoadGraphTpl(int TypeGraph);
   // get graph topology
   TIntSet GetNeighbor(int NID) { return Neighbor[NID-1]; }
   TIntSetV GetNeighbor() { return Neighbor; }
@@ -145,34 +547,23 @@ public:
   }
 };
 
-void GRAPH::LoadGraphTpl() {
-  string SGraphFile = DataName + ".graph";
-  const char* GraphFile = SGraphFile.c_str();
-  if (access(GraphFile, R_OK|W_OK) != 0) {
-    printf("No topology (.graph) file exists, please check it!!!\n");
-    exit(0);
+void GRAPH::LoadGraphTpl(int TypeGraph) {
+  GRAPHIOCLASS GraphIOClass;
+  if (TypeGraph==1) {
+  // load data is pure edge set
+    GraphIOClass.LoadPureEdgeSetGraph(DataName, ".graph", Neighbor, NameNID, true);
   }
-  ifstream finG;
-  finG.open(GraphFile);
-  string szLine;
-  TIntSet tempset;
-  while(getline(finG, szLine)) {
-    TStrV tData;
-    istringstream iss(szLine);
-    copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
-    for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
-      tempset.insert(atoi((*iter).c_str()));
-    }
-    Neighbor.push_back(tempset);
-    tempset.clear();  
+  if (TypeGraph==2) {
+  // load data is pure adjacent list
+    int TypeAdjList = 2;
+    // TypeAdjList=1) first value of each line denotes target node, while the other values denotes its neighbors;
+    //            =2) all values of each line denote the neighbors of target node, target node is line number that is from 1;
+    //            =3) all values of each line denote the neighbors of target node, target node is line number that is from 0;
+    GraphIOClass.LoadPureAdjListGraph(DataName, ".graph", TypeAdjList, Neighbor, NameNID, true);
   }
-  finG.close();
-  finG.clear();
   NumNodes = Neighbor.size();
   NumEdges = 0;
   for (int i = 0; i < Neighbor.size(); i++) { NumEdges += Neighbor[i].size(); }
-  // each edge is twicely recorded (undirected graph)
-  // NumEdges /= 2;
 }
 
 // load a graph node feature information
@@ -586,196 +977,6 @@ TDblV CENTRALITY::CondAllNodes(GRAPH G) {
 
 //////////////////////////////////
 ///////////////////////////////////////////////
-// class of file output
-// constructed in 2021-01-14 by Yuyao Wang
-class IOCLASS {
-public:
-  // input a TwoDimVV (stored in TIntVV).
-  void LoadIntVV(string DataName, string Suffix, TIntVV& TwoDimVV);
-  // input a TwoDimVV (stored in TDblVV).
-  void InputDblVV(string DataName, string Suffix, TDblVV& TwoDimVV);
-  
-public:
-  // output a vector (stored in T[X]V).
-  template <class T> void OutputVec(string FileName, string Suffix, vector<T> OneDimVec);
-  // output a set (stored in T[X]Set).
-  template <class T> void OutputSet(string FileName, string Suffix, set<T> OneDimSet);
-  // output a TwoDimVV (stored in T[X]VV).
-  template <class T> void OutputVV(string FileName, string Suffix, vector<vector<T> > TwoDimVV);
-  // output a TwoDimSetV (stored in T[X]SetV).
-  template <class T> void OutputSetV(string FileName, string Suffix, vector<set<T> > TwoDimSetV);
-  // output a map (stored in T[X][X]Map)
-  template <class T> void OutputMap(string FileName, string Suffix, map<T, T> FMap);
-  // output a .gml file which can be fed into Cytoscape software for visualizing a graph.
-  void OutputGML(string DataName, TIntSetV Neighbor, TIntSetV ClusInNode);
-};
-
-void IOCLASS::LoadIntVV(string DataName, string Suffix, TIntVV& TwoDimVV) {
-  string FileName = DataName + "." + Suffix;
-  const char* CharFileName = FileName.c_str();
-  if (access(CharFileName, R_OK|W_OK) != 0) {
-    printf("No IntVV file exists, please check it!!!\n");
-    exit(0);
-  }
-  ifstream finIntVV;
-  finIntVV.open(CharFileName);
-  string szLine;
-  TIntV TempV;
-  while(getline(finIntVV, szLine)) {
-    TStrV tData;
-    istringstream iss(szLine);
-    copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
-    for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
-      TempV.push_back(atoi((*iter).c_str()));
-    }
-    TwoDimVV.push_back(TempV);
-    TempV.clear();  
-  }
-  finIntVV.close();
-  finIntVV.clear();
-}
-
-void IOCLASS::InputDblVV(string DataName, string Suffix, TDblVV& TwoDimVV) {
-  string FileName = DataName + "." + Suffix;
-  const char* CharFileName = FileName.c_str();
-  if (access(CharFileName, R_OK|W_OK) != 0) {
-    printf("No DblVV file exists, please check it!!!\n");
-    exit(0);
-  }
-  ifstream finDblVV;
-  finDblVV.open(CharFileName);
-  string szLine;
-  TDblV TempV;
-  while(getline(finDblVV, szLine)) {
-    TStrV tData;
-    istringstream iss(szLine);
-    copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
-    for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
-      TempV.push_back(atof((*iter).c_str()));
-    }
-    TwoDimVV.push_back(TempV);
-    TempV.clear();  
-  }
-  finDblVV.close();
-  finDblVV.clear();
-}
-
-template <class T> 
-void IOCLASS::OutputVec(string FileName, string Suffix, vector<T> OneDimVec) {
-// output a vector.
-  string FullName = FileName + "." + Suffix;
-  const char* File = FullName.c_str();
-  ofstream foutV;
-  foutV.open(File);
-  for (int ind1 = 0; ind1 < OneDimVec.size(); ind1++) { foutV << OneDimVec[ind1] << endl; }
-  foutV.close();
-  foutV.clear();
-}
-
-template <class T> 
-void IOCLASS::OutputSet(string FileName, string Suffix, set<T> OneDimSet) {
-// output a vector.
-  string FullName = FileName + "." + Suffix;
-  const char* File = FullName.c_str();
-  ofstream foutSet;
-  foutSet.open(File);
-  typename std::set<T>::iterator TempIter;
-  for (TempIter = OneDimSet.begin(); TempIter != OneDimSet.end(); TempIter++) {
-    foutSet << *TempIter << " ";
-  }
-  foutSet.close();
-  foutSet.clear();
-}
-
-template <class T> 
-void IOCLASS::OutputVV(string FileName, string Suffix, vector<vector<T> > TwoDimVV) {
-// output a TwoDimVV (stored in T[X]VV)
-  string FullName = FileName + "." + Suffix;
-  const char* File = FullName.c_str();
-  ofstream foutVV;
-  foutVV.open(File);
-  for (int ind1 = 0; ind1 < TwoDimVV.size(); ind1++) {
-    for (int ind2 = 0; ind2 < TwoDimVV[ind1].size(); ind2++) { foutVV << TwoDimVV[ind1][ind2] << " "; }
-    foutVV << endl;
-  }
-  foutVV.close();
-  foutVV.clear();
-}
-
-template <class T> 
-void IOCLASS::OutputSetV(string FileName, string Suffix, vector<set<T> > TwoDimSetV) {
-// output a TwoDimSetV (stored in T[X]SetV)
-  string FullName = FileName + "." + Suffix;
-  const char* File = FullName.c_str();
-  ofstream foutSetV;
-  foutSetV.open(File);
-  typename std::set<T>::iterator TempIter;
-  for (int ind1 = 0; ind1 < TwoDimSetV.size(); ind1++) {
-    for (TempIter = TwoDimSetV[ind1].begin(); TempIter != TwoDimSetV[ind1].end(); TempIter++) {
-      foutSetV << *TempIter << " ";
-    }
-  foutSetV << endl;
-  }
-  foutSetV.close();
-  foutSetV.clear();
-}
-
-template <class T>
-void IOCLASS::OutputMap(string FileName, string Suffix, map<T, T> FMap) {
-  string FullName = FileName + "." + Suffix;
-  const char* File = FullName.c_str();
-  ofstream foutMap;
-  foutMap.open(File);
-  typename std::map<T, T>::iterator TempIter;
-  for (TempIter = FMap.begin(); TempIter != FMap.end(); TempIter++) { 
-    foutMap << TempIter->first << " " << TempIter->second << endl; 
-  }
-  foutMap.close();
-  foutMap.clear();
-}
-
-void IOCLASS::OutputGML(string FileName, TIntSetV Neighbor, TIntSetV ClusInNode) {
-// visualize the graph (output a .gml file which can be fed into software named Cytoscape
-  string SGmlFile = FileName + ".gml";
-  const char* GmlFile = SGmlFile.c_str();
-  ofstream foutG;
-  foutG.open(GmlFile);
-  foutG << "graph" << endl;
-  foutG << "[" << endl;
-  foutG << "  directed 0" << endl;
-  TIntSetIter it_set;
-  int i;
-  for (i = 0; i < Neighbor.size(); i++) {
-    foutG << "  node" << endl;
-    foutG << "  [" << endl;
-    foutG << "    id " << i + 1 << endl;
-    foutG << "    label " << "\"" << i + 1 << "\"" << endl;
-    // non-overlapping clusters
-    // if one node does not belong to any cluster, the flag equals 0;
-    it_set = ClusInNode[i].begin();
-    foutG << "    cluster " << "\"" << *it_set << "\"" << endl;
-    foutG << "  ]" << endl;
-  }
-  
-  for (i = 0; i < Neighbor.size(); i++) {
-    for (it_set = Neighbor[i].begin(); it_set != Neighbor[i].end(); it_set++) {
-      if (i < *it_set) {
-        foutG << "  edge" << endl;
-        foutG << "  [" << endl;
-        foutG << "    source " << i + 1 << endl;
-        foutG << "    target " << *it_set << endl;
-        foutG << "  ]" << endl;
-      }
-    }
-  }
-  foutG << "]" << endl;
-  foutG.close();
-  foutG.clear();
-}
-
-
-//////////////////////////////////
-///////////////////////////////////////////////
 //Class of performance test on nodes clustering
 /*Tips:
 1. The cluster structure of calculating AvgF1, NMI, and ARI is the second Type (each line denotes a set of nodes in a common community)
@@ -1149,7 +1350,7 @@ double ClusterTest::CalARI(TIntSetV Our, TIntSetV GT, int num_nodes) {
   return results;
 }
 
-
+/*
 ///////////////////////////////////
 ///////////////////////////////////////////////
 class SIMGT {
@@ -1398,7 +1599,7 @@ void EGTCD::PlotMotivation() {
   myOutput.OutputGML(DataName, Neighbor2, G.GetClusInNode());
 }
 
-
+*/
 ////////////////////
 //////////////////////////////
 class FUNCTIONTEST {
@@ -1410,10 +1611,12 @@ public:
 };
 
 void FUNCTIONTEST::PerformTest() {
-  G.LoadGraphTpl(); // load .graph file (pure directed graph)
+  // load .graph file (pure directed graph)
+  // the topology data is stored in the format of 1): edge set, or 2): adjacent list
+  G.LoadGraphTpl(2); 
   printf("Number of Nodes: %d, Number of edges: %d\n", G.GetNumNodes(), G.GetNumEdges());
   EVALGRAPH EvalGraph;
-  EvalGraph.FuncTest(G);
+  //EvalGraph.FuncTest(G);
 }
 
 int main(int argc, char **argv)
@@ -1423,6 +1626,7 @@ int main(int argc, char **argv)
   //float stepsize = atof(argv[3]);
   //int maxiter = atoi(argv[4]);
   //float delta = atof(argv[5]);
+  cout << "File Name: " << head << endl;
   
   GRAPH myGraph(head); // initialize an object
   struct timeval tod1, tod2; // record time

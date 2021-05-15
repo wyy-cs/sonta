@@ -79,8 +79,6 @@ public:
   template <class T> void OutputSetV(string FileName, string Suffix, vector<set<T> > TwoDimSetV);
   // output a map (stored in T[X][X]Map)
   template <class T> void OutputMap(string FileName, string Suffix, map<T, T> FMap);
-  // output a .gml file which can be fed into Cytoscape software for visualizing a graph.
-  void OutputGML(string DataName, TIntSetV Neighbor, TIntSetV ClusInNode);
 };
 
 void IOCLASS::LoadIntVV(string DataName, string Suffix, TIntVV& TwoDimVV) {
@@ -207,56 +205,21 @@ void IOCLASS::OutputMap(string FileName, string Suffix, map<T, T> FMap) {
   foutMap.clear();
 }
 
-void IOCLASS::OutputGML(string FileName, TIntSetV Neighbor, TIntSetV ClusInNode) {
-// visualize the graph (output a .gml file which can be fed into software named Cytoscape
-  string SGmlFile = FileName + ".gml";
-  const char* GmlFile = SGmlFile.c_str();
-  ofstream foutG;
-  foutG.open(GmlFile);
-  foutG << "graph" << endl;
-  foutG << "[" << endl;
-  foutG << "  directed 0" << endl;
-  TIntSetIter it_set;
-  int i;
-  for (i = 0; i < Neighbor.size(); i++) {
-    foutG << "  node" << endl;
-    foutG << "  [" << endl;
-    foutG << "    id " << i + 1 << endl;
-    foutG << "    label " << "\"" << i + 1 << "\"" << endl;
-    // non-overlapping clusters
-    // if one node does not belong to any cluster, the flag equals 0;
-    it_set = ClusInNode[i].begin();
-    foutG << "    cluster " << "\"" << *it_set << "\"" << endl;
-    foutG << "  ]" << endl;
-  }
-  
-  for (i = 0; i < Neighbor.size(); i++) {
-    for (it_set = Neighbor[i].begin(); it_set != Neighbor[i].end(); it_set++) {
-      if (i < *it_set) {
-        foutG << "  edge" << endl;
-        foutG << "  [" << endl;
-        foutG << "    source " << i + 1 << endl;
-        foutG << "    target " << *it_set << endl;
-        foutG << "  ]" << endl;
-      }
-    }
-  }
-  foutG << "]" << endl;
-  foutG.close();
-  foutG.clear();
-}
-
 
 //////////////////////////////////
 ///////////////////////////////////////////////
 // class of graph file IO
+// constructed by Yuyao Wang on 5/13/2021 at NJUST.
 class GRAPHIOCLASS {
 public:
+  // topology file
   void LoadPureEdgeSetGraph(string DataName, string Suffix, TIntSetV& Neighbor, TStrIntMap& NameNID, bool Verbose);
   void LoadPureAdjListGraph(string DataName, string Suffix, int Type, TIntSetV& Neighbor, TStrIntMap& NameNID, bool Verbose);
-  //void LoadNodeFea();
+  // cluster ground truth file
   void LoadGraphGtClusInNode(string DataName, string Suffix, int TypeGtClusInNode, bool& FlagOverlap, TStrIntMap& NameCID, int& NumClus, TIntSetV& ClusInNode, TIntSetV& ClusInClus, TStrIntMap NameNID, bool Verbose);
   void LoadGraphGtClusInClus(string DataName, string Suffix, int TypeGtClusInClus, bool& FlagOverlap, TStrIntMap& NameCID, int& NumClus, TIntSetV& ClusInNode, TIntSetV& ClusInClus, TStrIntMap NameNID, bool Verbose);
+  // output a .gml file which can be fed into Cytoscape software for visualizing a graph.
+  void OutputGML(string DataName, TIntSetV Neighbor, TIntSetV ClusInNode);
 };
 
 void GRAPHIOCLASS::LoadPureEdgeSetGraph(string DataName, string Suffix, TIntSetV& Neighbor, TStrIntMap& NameNID, bool Verbose) {
@@ -435,7 +398,7 @@ void GRAPHIOCLASS::LoadPureAdjListGraph(string DataName, string Suffix, int Type
 
 void GRAPHIOCLASS::LoadGraphGtClusInNode(string DataName, string Suffix, int TypeGtClusInNode, bool& FlagOverlap, TStrIntMap& NameCID, int& NumClus, TIntSetV& ClusInNode, TIntSetV& ClusInClus, TStrIntMap NameNID, bool Verbose) {
   // TypeGtClusInNode=1) load file format: first column in each row stores the node id, the other column stores the corresponding node's affiliation to clusters
-  //                  =2) load file format: all columns stores the corresponding node's affiliation to clusters, nodeid corresponds the line number
+  //                 =2) load file format: all columns stores the corresponding node's affiliation to clusters, nodeid corresponds the line number
   // if all rows have two elements, it is non-overlapping strucuture; if have more than two elements, it is overlapping structure
   // clusterid is renamed from 1, nodename is directly converted to nodeid using NameNID
   
@@ -618,6 +581,45 @@ void GRAPHIOCLASS::LoadGraphGtClusInClus(string DataName, string Suffix, int Typ
     }
     cout << "The nodes that do not exist in the topology file are abandoned." << endl;
   }
+}
+
+void GRAPHIOCLASS::OutputGML(string FileName, TIntSetV Neighbor, TIntSetV ClusInNode) {
+// visualize the graph (output a .gml file which can be fed into software named Cytoscape
+  string SGmlFile = FileName + ".gml";
+  const char* GmlFile = SGmlFile.c_str();
+  ofstream foutG;
+  foutG.open(GmlFile);
+  foutG << "graph" << endl;
+  foutG << "[" << endl;
+  foutG << "  directed 0" << endl;
+  TIntSetIter it_set;
+  int i;
+  for (i = 0; i < Neighbor.size(); i++) {
+    foutG << "  node" << endl;
+    foutG << "  [" << endl;
+    foutG << "    id " << i + 1 << endl;
+    foutG << "    label " << "\"" << i + 1 << "\"" << endl;
+    // non-overlapping clusters
+    // if one node does not belong to any cluster, the flag equals 0;
+    it_set = ClusInNode[i].begin();
+    foutG << "    cluster " << "\"" << *it_set << "\"" << endl;
+    foutG << "  ]" << endl;
+  }
+  
+  for (i = 0; i < Neighbor.size(); i++) {
+    for (it_set = Neighbor[i].begin(); it_set != Neighbor[i].end(); it_set++) {
+      if (i < *it_set) {
+        foutG << "  edge" << endl;
+        foutG << "  [" << endl;
+        foutG << "    source " << i + 1 << endl;
+        foutG << "    target " << *it_set << endl;
+        foutG << "  ]" << endl;
+      }
+    }
+  }
+  foutG << "]" << endl;
+  foutG.close();
+  foutG.clear();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -859,7 +861,7 @@ void GRAPH::FuncTest() {
 //////////////////////////////////
 ///////////////////////////////////////////////
 // class of evaluating a graph's basic characteristics
-// constructed in in 2021-01-16 by Yuyao Wang
+// constructed in 2021-01-16 by Yuyao Wang
 class EVALGRAPH {
 public:
   TIntV GetMaxDeg(GRAPH G); // return index from 1 and maxvalue 

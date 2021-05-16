@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <climits>
+#include <malloc.h>
 #ifdef USE_OPENMP
 #include <omp.h>
 #endif
@@ -235,13 +236,15 @@ void GRAPHIOCLASS::LoadPureEdgeSetGraph(string DataName, string Suffix, TIntSetV
   TStrSet NameSet;
   int NumNodePair = 0;
   while (getline(finG, szLine)) {
-    NumNodePair++;
     TStrV tData;
     istringstream iss(szLine);
     copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    TStrV::iterator iter1 = tData.begin();
+    if (*iter1 == "#") { continue; } // Skip comment lines
     for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
       NameSet.insert(*iter);
     }
+    NumNodePair++;
   }
   finG.close();
   finG.clear();
@@ -261,9 +264,10 @@ void GRAPHIOCLASS::LoadPureEdgeSetGraph(string DataName, string Suffix, TIntSetV
     copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
     // begin-node
     TStrV::iterator iter1 = tData.begin();
+    if (*iter1 == "#") { continue; } // Skip comment lines
     int NID1 = NameNID.at(*iter1);
     // end-node
-    TStrV::iterator iter2 = iter1++;
+    TStrV::iterator iter2 = ++iter1;
     int NID2 = NameNID.at(*iter2);
     // add edge
     Neighbor[NID1-1].insert(NID2);
@@ -277,9 +281,6 @@ void GRAPHIOCLASS::LoadPureEdgeSetGraph(string DataName, string Suffix, TIntSetV
     cout << "Reminder-2: one existed self-loop edge for any node is kept!!!" << endl;
     cout << "Reminder-3: replicated edges between any node pair are merged into one record!!!" << endl;
     cout << NumNodePair << " Node pairs are processed." << endl;
-    int NumEdges = 0;
-    for (int i = 0; i < Neighbor.size(); i++) { NumEdges += Neighbor[i].size(); }
-    cout << Neighbor.size() << " nodes and " << NumEdges << " edges are detected." << endl;
   }
 }
 
@@ -298,17 +299,24 @@ void GRAPHIOCLASS::LoadPureAdjListGraph(string DataName, string Suffix, int Type
   finG.open(GraphFile);
   string szLine;
   TStrSet NameSet;
+  int NumCommentLine = 0;
   while (getline(finG, szLine)) {
+    if (szLine.size()==0) { continue; }
     TStrV tData;
     istringstream iss(szLine);
     copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    TStrV::iterator iter1 = tData.begin();
+    if (*iter1 == "#") { 
+      NumCommentLine++;
+      continue; // Skip comment lines
+    } 
     for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
       NameSet.insert(*iter);
     }
   }
   finG.close();
   finG.clear();
-  
+
   Neighbor.resize(NameSet.size());
   int TempNId = 1;
   for (set<string>::iterator iter = NameSet.begin(); iter != NameSet.end(); iter++) {
@@ -323,6 +331,7 @@ void GRAPHIOCLASS::LoadPureAdjListGraph(string DataName, string Suffix, int Type
     // TypeAdjList=1) first value of each line denotes target node, while the other values denotes its neighbors
     finG1.open(GraphFile);
     while (getline(finG1, szLine)) {
+      if (NumLine < NumCommentLine) { continue; } // Skip comment lines
       if (szLine.size() == 1) {
         NumIsolatedNode++;
         NumLine++;
@@ -345,13 +354,20 @@ void GRAPHIOCLASS::LoadPureAdjListGraph(string DataName, string Suffix, int Type
   
   if (TypeAdjList==2) {
     // TypeAdjList=2) all values of each line denote the neighbors of target node, target node is the line number that is from 1;
+    // [be cautious] not recommend.
     finG1.open(GraphFile);
+    int LineID = 0;
     while (getline(finG1, szLine)) {
-      string StrNumLine = to_string(++NumLine);
+      if (LineID < NumCommentLine) { 
+        LineID++;
+        continue; // Skip comment lines
+      } 
       if (szLine.size() == 0) { 
         NumIsolatedNode++;
+        LineID++;
         continue;
-        }
+      }
+      string StrNumLine = to_string(LineID-NumCommentLine+1);
       TStrV tData;
       istringstream iss(szLine);
       copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
@@ -360,6 +376,7 @@ void GRAPHIOCLASS::LoadPureAdjListGraph(string DataName, string Suffix, int Type
         int NeighborNId = NameNID.at(*iter);
         Neighbor[TargetNId-1].insert(NeighborNId); 
       }
+      LineID++;
     }
     finG1.close();
     finG1.clear();
@@ -367,14 +384,20 @@ void GRAPHIOCLASS::LoadPureAdjListGraph(string DataName, string Suffix, int Type
   
   if (TypeAdjList==3) {
     // TypeAdjList=3) all values of each line denote the neighbors of target node, target node is the line number that is from 0;
+    // [be cautious] not recommended.
     finG1.open(GraphFile);
+    int LineID = 0;
     while (getline(finG1, szLine)) {
+      if (LineID < NumCommentLine) {
+        LineID++; 
+        continue; 
+      } // Skip comment lines
       if (szLine.size() == 0) { 
         NumIsolatedNode++;
-        NumLine++;
+        LineID++;
         continue; 
       }
-      string StrNumLine = to_string(NumLine);
+      string StrNumLine = to_string(LineID-1);
       TStrV tData;
       istringstream iss(szLine);
       copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
@@ -383,7 +406,7 @@ void GRAPHIOCLASS::LoadPureAdjListGraph(string DataName, string Suffix, int Type
         int NeighborNId = NameNID.at(*iter);
         Neighbor[TargetNId-1].insert(NeighborNId);
       }
-      NumLine++;
+      LineID++;
     }
     finG1.close();
     finG1.clear();
@@ -415,14 +438,16 @@ void GRAPHIOCLASS::LoadGraphGtClusInNode(string DataName, string Suffix, int Typ
   FlagOverlap = 0; // set as non-overlapping by default
   int NumLine = 0; // store the number of retrieved lines
   while(getline(finGT, szLine)) { 
-    NumLine++;
     TStrV tData;
     istringstream iss(szLine);
     copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    TStrV::iterator iter2 = tData.begin();
+    if (*iter2 == "#") { continue; } // Skip comment lines
+    NumLine++;
     int NumClusANode = 0; // determine the number of clusters to which a node belongs
     if (TypeGtClusInNode==1) {
       TStrV::iterator iter1 = tData.begin();
-      for (TStrV::iterator iter = iter1++; iter != tData.end(); ++iter) { 
+      for (TStrV::iterator iter = ++iter1; iter != tData.end(); ++iter) { 
         NumClusANode++;
         ClusterNameSet.insert(*iter); 
       }
@@ -459,12 +484,14 @@ void GRAPHIOCLASS::LoadGraphGtClusInNode(string DataName, string Suffix, int Typ
     TStrV tData;
     istringstream iss(szLine);
     copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    TStrV::iterator iter3 = tData.begin();
+    if (*iter3 == "#") { continue; } // Skip comment lines
     if (TypeGtClusInNode==1) {
       TStrV::iterator iter1 = tData.begin();
       // determine whether the node exists in the topology file 
       if (NameNID.find(*iter1) == NameNID.end()) { continue; }
       int NID = NameNID.at(*iter1);
-      for (TStrV::iterator iter = iter1++; iter != tData.end(); ++iter) {
+      for (TStrV::iterator iter = ++iter1; iter != tData.end(); ++iter) {
         int CID = NameCID.at(*iter);
         ClusInNode[NID-1].insert(CID);
         ClusInClus[CID-1].insert(NID);
@@ -513,11 +540,17 @@ void GRAPHIOCLASS::LoadGraphGtClusInClus(string DataName, string Suffix, int Typ
   TStrSet ClusterNameSet; // store all clusters' name
   FlagOverlap = 0; // set as non-overlapping by default
   int NumLine = 0; // store the number of retrieved lines
+  int NumCommentLine = 0;
   while(getline(finGT, szLine)) { 
-    NumLine++;
     TStrV tData;
     istringstream iss(szLine);
     copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    TStrV::iterator iter2 = tData.begin();
+    if (*iter2 == "#") { 
+      NumCommentLine++;
+      continue; // Skip comment lines
+    } 
+    NumLine++;
     if (TypeGtClusInClus==1) {
       TStrV::iterator iter1 = tData.begin(); 
       ClusterNameSet.insert(*iter1); 
@@ -545,10 +578,12 @@ void GRAPHIOCLASS::LoadGraphGtClusInClus(string DataName, string Suffix, int Typ
     TStrV tData;
     istringstream iss(szLine);
     copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    TStrV::iterator iter3 = tData.begin();
+    if (*iter3 == "#") { continue; } // Skip comment lines
     if (TypeGtClusInClus==1) {
       TStrV::iterator iter1 = tData.begin(); 
       int CID = NameCID.at(*iter1); 
-      for (TStrV::iterator iter = iter1++; iter != tData.end(); ++iter) { 
+      for (TStrV::iterator iter = ++iter1; iter != tData.end(); ++iter) { 
        // determine whether the node exists in the topology file 
         if (NameNID.find(*iter) == NameNID.end()) { continue; }
         int NID = NameNID.at(*iter);
@@ -557,6 +592,8 @@ void GRAPHIOCLASS::LoadGraphGtClusInClus(string DataName, string Suffix, int Typ
       }
     }
     if (TypeGtClusInClus==2) { 
+      // [be cautious] not recommend. 
+      if (LineID <= NumCommentLine) { continue; }
       int CID = LineID;
       for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
         // determine whether the node exists in the topology file 
@@ -565,8 +602,8 @@ void GRAPHIOCLASS::LoadGraphGtClusInClus(string DataName, string Suffix, int Typ
         ClusInNode[NID-1].insert(CID);
         ClusInClus[CID-1].insert(NID);
       }
+      LineID++;
     }
-    LineID++;
   }
   finGT.close();
   finGT.clear();
@@ -666,6 +703,8 @@ public:
   GRAPH(string dataname) { DataName = dataname; }
   // get data name
   string GetDataName() { return DataName; }
+  // get NameNID
+  TStrIntMap GetNameNID() { return NameNID; }
   
   // load a graph (directed) with topology information
   void LoadGraphTpl(int TypeGraph);
@@ -696,6 +735,8 @@ public:
   
   // load real cluster information
   void LoadClusGt(int TypeGT);
+  // get NameCID
+  TStrIntMap GetNameCID() { return NameCID; }
   // get gt clusters listed in cluster
   TIntSetV GetClusInClus() { return ClusInClus; }
   // get a set of nodes in a specific cluster 
@@ -725,7 +766,7 @@ void GRAPH::LoadGraphTpl(int TypeGraph) {
   GRAPHIOCLASS GraphIOClass;
   if (TypeGraph==1) {
   // load data is pure edge set
-    GraphIOClass.LoadPureEdgeSetGraph(DataName, ".graph", Neighbor, NameNID, true);
+    GraphIOClass.LoadPureEdgeSetGraph(DataName, ".edgelist", Neighbor, NameNID, true);
   }
   if (TypeGraph==2) {
   // load data is pure adjacent list
@@ -733,7 +774,7 @@ void GRAPH::LoadGraphTpl(int TypeGraph) {
     // TypeAdjList=1) first value of each line denotes target node, while the other values denotes its neighbors;
     //            =2) all values of each line denote the neighbors of target node, target node is line number that is from 1;
     //            =3) all values of each line denote the neighbors of target node, target node is line number that is from 0;
-    GraphIOClass.LoadPureAdjListGraph(DataName, ".graph", TypeAdjList, Neighbor, NameNID, true);
+    GraphIOClass.LoadPureAdjListGraph(DataName, ".adjlist", TypeAdjList, Neighbor, NameNID, true);
   }
   NumNodes = Neighbor.size();
   NumEdges = 0;
@@ -869,7 +910,7 @@ public:
   int GetAvgDeg(GRAPH G); // return average degree of a graph
   TIntIntMap GetDegreeDistribution(GRAPH G); // key is number of degree value, value is number of nodes
   bool GetConnectivityBFS(TIntSetV Neighbor, int TargetNode); // BFS for determining the connectivity of the graph
-  bool GetConnectivityDFS(TIntSetV Neighbor, int TargetNode); // DFS for determining the connectivity of the graph
+  bool GetConnectivityDFS(TIntSetV Neighbor, int TargetNode); // DFS for determining the connectivity of the graph  
   double GetOneNodeClusteringCoefficient(TIntSetV Neighbor, int TargetNode); // clustering coefficient of one node
   double GetClusteringCoefficient(TIntSetV Neighbor); // clustering coefficient of whole graph (average of all nodes)
   TIntV GetShortestPathDijkstra(GRAPH G, int TargetNode); // shortest path using SPFA technique
@@ -884,7 +925,13 @@ TIntV EVALGRAPH::GetMaxDeg(GRAPH G) {
   TIntV MaxPosValue;
   MaxPosValue.push_back(distance(DegAllNodes.begin(), MaxPos) + 1); // position index, begin from 1
   MaxPosValue.push_back(*MaxPos); // value
-  cout << "max degree, node-id: " << MaxPosValue[0] << ", value= " << MaxPosValue[1] << endl;
+  // get NameNID
+  TStrIntMap NameNID = G.GetNameNID();
+  for (TStrIntMap::iterator iter = NameNID.begin(); iter != NameNID.end(); ++iter) {
+    if (iter->second == MaxPosValue[0]) {
+      cout << "max degree, node-name:" << iter->first << ", node-id: " << MaxPosValue[0] << ", value= " << MaxPosValue[1] << endl;
+    }
+  }
   return MaxPosValue;
 }
 
@@ -894,7 +941,12 @@ TIntV EVALGRAPH::GetMinDeg(GRAPH G) {
   TIntV MinPosValue;
   MinPosValue.push_back(distance(DegAllNodes.begin(), MinPos) + 1); // position index, begin from 1
   MinPosValue.push_back(*MinPos); // value
-  cout << "min degree, node-id: " << MinPosValue[0] << ", value= " << MinPosValue[1] << endl;
+  TStrIntMap NameNID = G.GetNameNID();
+  for (TStrIntMap::iterator iter = NameNID.begin(); iter != NameNID.end(); ++iter) {
+    if (iter->second == MinPosValue[0]) {
+      cout << "min degree, node-name:" << iter->first << ", node-id: " << MinPosValue[0] << ", value= " << MinPosValue[1] << endl;
+    }
+  }
   return MinPosValue;
 }
 
@@ -1071,8 +1123,8 @@ void EVALGRAPH::FuncTest(GRAPH G) {
   GetAvgDeg(G);
   GetConnectivityBFS(G.GetNeighbor(), 1);
   // GetConnectivityDFS(G.GetNeighbor(), 1);
-  GetClusteringCoefficient(G.GetNeighbor());
-  GetAverageShortestPathDijkstra(G);
+  //GetClusteringCoefficient(G.GetNeighbor());
+  //GetAverageShortestPathDijkstra(G);
   cout << endl;
   cout << "=========================================" << endl;
 }
@@ -1771,13 +1823,13 @@ public:
 
 void FUNCTIONTEST::PerformTest() {
   // load .graph file (pure directed graph)
-  // the topology data is stored in the format of 1): edge set, or 2): adjacent list
+  // the topology data is stored in the format of 1): edge list, or 2): adjacent list
   G.LoadGraphTpl(2); 
   printf("Number of Nodes: %d, Number of edges: %d\n", G.GetNumNodes(), G.GetNumEdges());
   G.LoadClusGt(2);
   printf("Number of clusters: %d\n", G.GetNumClus());
   EVALGRAPH EvalGraph;
-  //EvalGraph.FuncTest(G);
+  EvalGraph.FuncTest(G);
 }
 
 int main(int argc, char **argv)
@@ -1797,6 +1849,7 @@ int main(int argc, char **argv)
   gettimeofday(&tod2, NULL);
   cout << "========= " << "Time cost: " << todiff(&tod2, &tod1) / 1000000.0 << "s" << " =========" << endl;
   cout << endl;
-
+  
+  malloc_trim(0);
   return 0;
 }

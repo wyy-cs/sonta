@@ -210,20 +210,20 @@ void IOCLASS::OutputMap(string FileName, string Suffix, map<T, T> FMap) {
 //////////////////////////////////
 ///////////////////////////////////////////////
 // class of graph file IO
-// constructed by Yuyao Wang on 5/13/2021 at NJUST.
+// last modified by Yuyao Wang on 5/17/2021 at NJUST.
 class GRAPHIOCLASS {
 public:
   // topology file
-  void LoadPureEdgeSetGraph(string DataName, string Suffix, TIntSetV& Neighbor, TStrIntMap& NameNID, bool Verbose);
-  void LoadPureAdjListGraph(string DataName, string Suffix, int Type, TIntSetV& Neighbor, TStrIntMap& NameNID, bool Verbose);
+  void LoadPureEdgeListGraph(string DataName, string Suffix, TIntSetV& Neighbor, TStrIntMap& NameNID, bool Verbose);
+  void LoadPureAdjListGraph(string DataName, string Suffix, TIntSetV& Neighbor, TStrIntMap& NameNID, bool Verbose);
   // cluster ground truth file
-  void LoadGraphGtClusInNode(string DataName, string Suffix, int TypeGtClusInNode, bool& FlagOverlap, TStrIntMap& NameCID, int& NumClus, TIntSetV& ClusInNode, TIntSetV& ClusInClus, TStrIntMap NameNID, bool Verbose);
-  void LoadGraphGtClusInClus(string DataName, string Suffix, int TypeGtClusInClus, bool& FlagOverlap, TStrIntMap& NameCID, int& NumClus, TIntSetV& ClusInNode, TIntSetV& ClusInClus, TStrIntMap NameNID, bool Verbose);
+  void LoadGraphGtClusInNode(string DataName, string Suffix, TStrIntMap& NameCID, TIntSetV& ClusInNode, TIntSetV& ClusInClus, TStrIntMap NameNID, bool Verbose);
+  void LoadGraphGtClusInClus(string DataName, string Suffix, TStrIntMap& NameCID, TIntSetV& ClusInNode, TIntSetV& ClusInClus, TStrIntMap NameNID, bool Verbose);
   // output a .gml file which can be fed into Cytoscape software for visualizing a graph.
   void OutputGML(string DataName, TIntSetV Neighbor, TIntSetV ClusInNode);
 };
 
-void GRAPHIOCLASS::LoadPureEdgeSetGraph(string DataName, string Suffix, TIntSetV& Neighbor, TStrIntMap& NameNID, bool Verbose) {
+void GRAPHIOCLASS::LoadPureEdgeListGraph(string DataName, string Suffix, TIntSetV& Neighbor, TStrIntMap& NameNID, bool Verbose) {
   string SGraphFile = DataName + Suffix;
   const char* GraphFile = SGraphFile.c_str();
   if (access(GraphFile, R_OK|W_OK) != 0) {
@@ -234,13 +234,16 @@ void GRAPHIOCLASS::LoadPureEdgeSetGraph(string DataName, string Suffix, TIntSetV
   finG.open(GraphFile);
   string szLine;
   TStrSet NameSet;
+  int NumLines = 0;
   int NumNodePair = 0;
   while (getline(finG, szLine)) {
+    NumLines++;
     TStrV tData;
     istringstream iss(szLine);
     copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
-    TStrV::iterator iter1 = tData.begin();
-    if (*iter1 == "#") { continue; } // Skip comment lines
+    if (tData.size() == 0 || tData.size() != 2) { continue; } // skip abnormal lines.
+    TStrV::iterator iter1 = tData.begin(); // if szLine.size() == 0, tData.begin() is a bug.
+    if (*iter1 == "#") { continue; } // skip comment lines.
     for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
       NameSet.insert(*iter);
     }
@@ -252,7 +255,7 @@ void GRAPHIOCLASS::LoadPureEdgeSetGraph(string DataName, string Suffix, TIntSetV
   Neighbor.resize(NameSet.size());
   int TempNId = 1;
   for (set<string>::iterator iter = NameSet.begin(); iter != NameSet.end(); iter++) {
-   // rename node
+   // rename node from 1.
      NameNID.insert(pair<string, int>(*iter, TempNId));
      TempNId++;
   }
@@ -262,9 +265,10 @@ void GRAPHIOCLASS::LoadPureEdgeSetGraph(string DataName, string Suffix, TIntSetV
     TStrV tData;
     istringstream iss(szLine);
     copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    if (tData.size() == 0 || tData.size() != 2) { continue; } // skip abnormal lines.
+    TStrV::iterator iter1 = tData.begin(); // if tData.size() == 0, tData.begin() is fault operation.
+    if (*iter1 == "#") { continue; } // skip comment lines.
     // begin-node
-    TStrV::iterator iter1 = tData.begin();
-    if (*iter1 == "#") { continue; } // Skip comment lines
     int NID1 = NameNID.at(*iter1);
     // end-node
     TStrV::iterator iter2 = ++iter1;
@@ -277,18 +281,17 @@ void GRAPHIOCLASS::LoadPureEdgeSetGraph(string DataName, string Suffix, TIntSetV
   
   if (Verbose) {
     cout << "=================Topology Data Load Information===================" << endl;
-    cout << "Reminder-1: All nodes are renamed from 1, and the network topology is stored in a vector<set<int> > structure." << endl;
-    cout << "Reminder-2: one existed self-loop edge for any node is kept!!!" << endl;
-    cout << "Reminder-3: replicated edges between any node pair are merged into one record!!!" << endl;
-    cout << NumNodePair << " Node pairs are processed." << endl;
+    cout << "[Reminder-1]: This graph is regarded as a directed graph. ";
+    cout << NumLines << " lines in the original .edgelist file are processed, and ";
+    cout << NumNodePair << " resonable directed edges are added as a part of network's topology." << endl;
+    cout << "[Reminder-2]: All nodes are renamed from 1." << endl;
+    cout << "[Reminder-3]: Only one single existed self-loop edge for any node is kept." << endl;
+    cout << "[Reminder-4]: Only one of multiple replicated edges between any directed node pair is kept." << endl;
   }
 }
 
-void GRAPHIOCLASS::LoadPureAdjListGraph(string DataName, string Suffix, int TypeAdjList, TIntSetV& Neighbor, TStrIntMap& NameNID, bool Verbose) {
+void GRAPHIOCLASS::LoadPureAdjListGraph(string DataName, string Suffix, TIntSetV& Neighbor, TStrIntMap& NameNID, bool Verbose) {
  // for the load file, each line list a node's neighbor set.
- // TypeAdjList=1) first value of each line denotes target node, while the other values denotes its neighbors;
- //            =2) all values of each line denote the neighbors of target node, target node is line number that is from 1;
- //            =3) all values of each line denote the neighbors of target node, target node is line number that is from 0;
   string SGraphFile = DataName + Suffix;
   const char* GraphFile = SGraphFile.c_str();
   if (access(GraphFile, R_OK|W_OK) != 0) {
@@ -299,25 +302,24 @@ void GRAPHIOCLASS::LoadPureAdjListGraph(string DataName, string Suffix, int Type
   finG.open(GraphFile);
   string szLine;
   TStrSet NameSet;
-  int NumCommentLine = 0;
+  int NumLines = 0;
+  int NumReaLines = 0;
   while (getline(finG, szLine)) {
-    if (szLine.size()==0) { continue; }
+    NumLines++;
     TStrV tData;
     istringstream iss(szLine);
     copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    if (tData.size() <= 1) { continue; } // skip abnormal lines
     TStrV::iterator iter1 = tData.begin();
-    if (*iter1 == "#") { 
-      NumCommentLine++;
-      continue; // Skip comment lines
-    } 
+    if (*iter1 == "#") { continue; } // Skip comment lines
     for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
-      NameSet.insert(*iter);
+      NameSet.insert(*iter); // target nodes have also to be renamed.
     }
+    NumReaLines++;
   }
   finG.close();
   finG.clear();
-
-  Neighbor.resize(NameSet.size());
+  
   int TempNId = 1;
   for (set<string>::iterator iter = NameSet.begin(); iter != NameSet.end(); iter++) {
    // rename node
@@ -325,151 +327,66 @@ void GRAPHIOCLASS::LoadPureAdjListGraph(string DataName, string Suffix, int Type
      TempNId++;
   }
   
-  int NumIsolatedNode = 0;
-  int NumLine = 0;
-  if (TypeAdjList==1) {
-    // TypeAdjList=1) first value of each line denotes target node, while the other values denotes its neighbors
-    finG1.open(GraphFile);
-    while (getline(finG1, szLine)) {
-      if (NumLine < NumCommentLine) { continue; } // Skip comment lines
-      if (szLine.size() == 1) {
-        NumIsolatedNode++;
-        NumLine++;
-        continue;
-      }
-      NumLine++;
-      TStrV tData;
-      istringstream iss(szLine);
-      copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
-      TStrV::iterator iter1 = tData.begin();
-      int TargetNId = NameNID.at(*iter1);
-      for (TStrV::iterator iter = ++iter1; iter != tData.end(); ++iter) { 
-        int NeighborNId = NameNID.at(*iter);
-        Neighbor[TargetNId-1].insert(NeighborNId);
-      }
+  Neighbor.resize(NameSet.size());
+  finG1.open(GraphFile);
+  while (getline(finG1, szLine)) {
+    TStrV tData;
+    istringstream iss(szLine);
+    copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    if (tData.size() <= 1) { continue; } // skip abnormal lines
+    TStrV::iterator iter1 = tData.begin();
+    if (*iter1 == "#") { continue; } // Skip comment lines
+    int TargetNId = NameNID.at(*iter1);
+    for (TStrV::iterator iter = ++iter1; iter != tData.end(); ++iter) { 
+      int NeighborNId = NameNID.at(*iter);
+      Neighbor[TargetNId-1].insert(NeighborNId);
     }
-    finG1.close();
-    finG1.clear();
   }
+  finG1.close();
+  finG1.clear();
   
-  if (TypeAdjList==2) {
-    // TypeAdjList=2) all values of each line denote the neighbors of target node, target node is the line number that is from 1;
-    // [be cautious] not recommend.
-    finG1.open(GraphFile);
-    int LineID = 0;
-    while (getline(finG1, szLine)) {
-      if (LineID < NumCommentLine) { 
-        LineID++;
-        continue; // Skip comment lines
-      } 
-      if (szLine.size() == 0) { 
-        NumIsolatedNode++;
-        LineID++;
-        continue;
-      }
-      string StrNumLine = to_string(LineID-NumCommentLine+1);
-      TStrV tData;
-      istringstream iss(szLine);
-      copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
-      int TargetNId = NameNID.at(StrNumLine);
-      for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
-        int NeighborNId = NameNID.at(*iter);
-        Neighbor[TargetNId-1].insert(NeighborNId); 
-      }
-      LineID++;
-    }
-    finG1.close();
-    finG1.clear();
-  }
-  
-  if (TypeAdjList==3) {
-    // TypeAdjList=3) all values of each line denote the neighbors of target node, target node is the line number that is from 0;
-    // [be cautious] not recommended.
-    finG1.open(GraphFile);
-    int LineID = 0;
-    while (getline(finG1, szLine)) {
-      if (LineID < NumCommentLine) {
-        LineID++; 
-        continue; 
-      } // Skip comment lines
-      if (szLine.size() == 0) { 
-        NumIsolatedNode++;
-        LineID++;
-        continue; 
-      }
-      string StrNumLine = to_string(LineID-1);
-      TStrV tData;
-      istringstream iss(szLine);
-      copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
-      int TargetNId = NameNID.at(StrNumLine);
-      for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
-        int NeighborNId = NameNID.at(*iter);
-        Neighbor[TargetNId-1].insert(NeighborNId);
-      }
-      LineID++;
-    }
-    finG1.close();
-    finG1.clear();
-  }
   if (Verbose) {
     cout << "=================Topology Data Load Information===================" << endl;
-    cout << "Reminder-1: All nodes are renamed from 1." << endl;
-    cout << "Reminder-2: Replicated edges between any node pair are merged into one record!!!" << endl;
-    cout << NumLine << " lines are processed, " << NumIsolatedNode << " isolated nodes are removed, " << NumLine-NumIsolatedNode << " nodes are kept." << endl;
+    cout << "[Reminder-1]: This graph is regarded as a directed graph. ";
+    cout << NumLines << " lines in the original .adjlist file are retrieved, and ";
+    cout << NumReaLines << " reasonable lines are processed to build network's topology." << endl;
+    cout << "[Reminder-2]: All nodes are renamed from 1." << endl;
+    cout << "[Reminder-3]: Only one single existed self-loop edge for any node is kept." << endl;
+    cout << "[Reminder-4]: Only one of multiple replicated edges between any directed node pair is kept." << endl;
   }
 }
 
-void GRAPHIOCLASS::LoadGraphGtClusInNode(string DataName, string Suffix, int TypeGtClusInNode, bool& FlagOverlap, TStrIntMap& NameCID, int& NumClus, TIntSetV& ClusInNode, TIntSetV& ClusInClus, TStrIntMap NameNID, bool Verbose) {
-  // TypeGtClusInNode=1) load file format: first column in each row stores the node id, the other column stores the corresponding node's affiliation to clusters
-  //                 =2) load file format: all columns stores the corresponding node's affiliation to clusters, nodeid corresponds the line number
+void GRAPHIOCLASS::LoadGraphGtClusInNode(string DataName, string Suffix, TStrIntMap& NameCID, TIntSetV& ClusInNode, TIntSetV& ClusInClus, TStrIntMap NameNID, bool Verbose) {
   // if all rows have two elements, it is non-overlapping strucuture; if have more than two elements, it is overlapping structure
   // clusterid is renamed from 1, nodename is directly converted to nodeid using NameNID
-  
   string SClusFile = DataName + Suffix;
   const char* ClusFile = SClusFile.c_str();
   if (access(ClusFile, R_OK|W_OK) != 0) { 
     printf("No ground-truth cluster file exists!!!\n"); 
     return; 
   }
-  ifstream finGT;
+  ifstream finGT, finGT1;
   finGT.open(ClusFile);
   string szLine;
   TStrSet ClusterNameSet; // store all clusters' name
-  FlagOverlap = 0; // set as non-overlapping by default
-  int NumLine = 0; // store the number of retrieved lines
+  int NumNodes = 0; // store the number of resonable nodes affiliations.
+  int NumLines = 0; // retrieved lines in the load cluster ground truth file
   while(getline(finGT, szLine)) { 
+    NumLines++;
     TStrV tData;
     istringstream iss(szLine);
     copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    if (tData.size() <= 1) { continue; } // skip empty lines and unreasonable nodes with no cluster affiliations
     TStrV::iterator iter2 = tData.begin();
     if (*iter2 == "#") { continue; } // Skip comment lines
-    NumLine++;
-    int NumClusANode = 0; // determine the number of clusters to which a node belongs
-    if (TypeGtClusInNode==1) {
-      TStrV::iterator iter1 = tData.begin();
-      for (TStrV::iterator iter = ++iter1; iter != tData.end(); ++iter) { 
-        NumClusANode++;
-        ClusterNameSet.insert(*iter); 
-      }
+    NumNodes++;
+    for (TStrV::iterator iter = ++iter2; iter != tData.end(); ++iter) { 
+      ClusterNameSet.insert(*iter); 
     }
-    if (TypeGtClusInNode==2) {
-      for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
-        NumClusANode++;
-        ClusterNameSet.insert(*iter); 
-      }
-    }
-    if (NumClusANode > 1) { FlagOverlap = 1; }
   }
   finGT.close();
   finGT.clear();
-  // number of clusters
-  NumClus = ClusterNameSet.size();
-  if (NumLine != NameNID.size()) { 
-    cout << "The number of retrieved lines is not equal to the number of nodes retrieved in topology file!!!" << endl;
-    cout << "The corresponding nodes will be selected!!!" << endl;
-    cout << "The nodes that do not exist in topology file are abandoned!!!" << endl;
-  }
-  
+
   int TempCId = 1;
   for (set<string>::iterator iter = ClusterNameSet.begin(); iter != ClusterNameSet.end(); iter++) {
    // rename cluster
@@ -477,55 +394,45 @@ void GRAPHIOCLASS::LoadGraphGtClusInNode(string DataName, string Suffix, int Typ
      TempCId++;
   }
   
-  ClusInNode.resize(NameNID.size());
-  ClusInClus.resize(NumClus);
-  int LineID = 1;
-  while(getline(finGT, szLine)) {
+  ClusInNode.resize(NameNID.size()); // allocate space
+  ClusInClus.resize(ClusterNameSet.size()); // allocate space
+  finGT1.open(ClusFile);
+  while(getline(finGT1, szLine)) {
     TStrV tData;
     istringstream iss(szLine);
     copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
+    if (tData.size() <= 1) { continue; } // skip empty lines and unreasonable nodes with no cluster affiliations
     TStrV::iterator iter3 = tData.begin();
     if (*iter3 == "#") { continue; } // Skip comment lines
-    if (TypeGtClusInNode==1) {
-      TStrV::iterator iter1 = tData.begin();
-      // determine whether the node exists in the topology file 
-      if (NameNID.find(*iter1) == NameNID.end()) { continue; }
-      int NID = NameNID.at(*iter1);
-      for (TStrV::iterator iter = ++iter1; iter != tData.end(); ++iter) {
-        int CID = NameCID.at(*iter);
-        ClusInNode[NID-1].insert(CID);
-        ClusInClus[CID-1].insert(NID);
-      }
+    // determine whether the node exists in the topology file 
+    if (NameNID.find(*iter3) == NameNID.end()) { continue; }
+    int NID = NameNID.at(*iter3);
+    for (TStrV::iterator iter = ++iter3; iter != tData.end(); ++iter) {
+      int CID = NameCID.at(*iter);
+      ClusInNode[NID-1].insert(CID);
+      ClusInClus[CID-1].insert(NID);
     }
-    if (TypeGtClusInNode==2) {
-      int NID = LineID;
-      for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) {
-        int CID = NameCID.at(*iter);
-        // the node id is directly the line id.
-        ClusInNode[NID-1].insert(CID);
-        ClusInClus[CID-1].insert(NID);
-      }
-    }
-    LineID++;
   }
-  finGT.close();
-  finGT.clear();
+  finGT1.close();
+  finGT1.clear();
   
   if (Verbose) {
     cout << "=================Cluster ground truth Data Load Information===================" << endl;
-    cout << "Reminder-1: All clusters are renamed from 1." << endl;
-    if (FlagOverlap) { 
-      cout << "A overlapping structure is loaded." << endl;
+    if (NumNodes != NameNID.size()) { 
+      cout << "[Reminder-1]: We assume a node is unreasonable if it has no cluster affiliations, and set their affiliation as empty. ";
+      cout << "The number of retrieved reasonable nodes is not equal to the number of nodes retrieved in the topology file." << endl;
+      cout << "[Reminder-2]: The affiliations of nodes existed in the topology file are selected, the nodes that do not exist in topology file are abandoned, ";
+      cout << "thus some nodes existed in the topology file perhaps do not have cluster affiliations." << endl;
+      cout << "[Reminder-3]: All clusters are renamed from 1." << endl;
     } else {
-      cout << "A non-overlapping structure is loaded." << endl;
+      cout << "[Reminder-1]: We assume a node is unreasonable if it has no cluster affiliations." << endl;
+      cout << "[Reminder-2]: The number of retrieved reasonable nodes is equal to the number of nodes retrieved in the topology file!!!" << endl;
+      cout << "[Reminder-3]: All clusters are renamed from 1." << endl;
     }
-    cout << "The nodes that do not exist in the topology file are abandoned." << endl;
   }
 }
 
-void GRAPHIOCLASS::LoadGraphGtClusInClus(string DataName, string Suffix, int TypeGtClusInClus, bool& FlagOverlap, TStrIntMap& NameCID, int& NumClus, TIntSetV& ClusInNode, TIntSetV& ClusInClus, TStrIntMap NameNID, bool Verbose) {
-  // TypeGtClusInClus=1) load file format: first column in each row stores the cluster name, the other column stores the nodes in the corresponding clusters
-  //                  =2) load file format: all columns in each line stores the nodes that belong to a common cluster
+void GRAPHIOCLASS::LoadGraphGtClusInClus(string DataName, string Suffix, TStrIntMap& NameCID, TIntSetV& ClusInNode, TIntSetV& ClusInClus, TStrIntMap NameNID, bool Verbose) {
   // clusterid is renamed from 1, nodename is directly converted to nodeid using NameNID
   
   string SClusFile = DataName + Suffix;
@@ -534,89 +441,60 @@ void GRAPHIOCLASS::LoadGraphGtClusInClus(string DataName, string Suffix, int Typ
     printf("No ground-truth cluster file exists!!!\n"); 
     return; 
   }
-  ifstream finGT;
+  ifstream finGT, finGT1;
   finGT.open(ClusFile);
   string szLine;
   TStrSet ClusterNameSet; // store all clusters' name
-  FlagOverlap = 0; // set as non-overlapping by default
   int NumLine = 0; // store the number of retrieved lines
-  int NumCommentLine = 0;
+  int NumReaLines = 0; // store the number of processed resonable normal lines
   while(getline(finGT, szLine)) { 
+    NumLine++;
     TStrV tData;
     istringstream iss(szLine);
     copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
-    TStrV::iterator iter2 = tData.begin();
-    if (*iter2 == "#") { 
-      NumCommentLine++;
-      continue; // Skip comment lines
-    } 
-    NumLine++;
-    if (TypeGtClusInClus==1) {
-      TStrV::iterator iter1 = tData.begin(); 
-      ClusterNameSet.insert(*iter1); 
-    }
-    if (TypeGtClusInClus==2) { ClusterNameSet.insert(to_string(NumLine)); }
+    if (tData.size() <= 1) { continue; } // skip abnormal lines.
+    TStrV::iterator iter1 = tData.begin();
+    if (*iter1 == "#") { continue; } // Skip comment lines 
+    ClusterNameSet.insert(*iter1);
+    NumReaLines++;
   }
   finGT.close();
   finGT.clear();
-  // number of clusters
-  NumClus = ClusterNameSet.size();
   
-  if (TypeGtClusInClus==1) {
-    int TempCId = 1;
-    for (set<string>::iterator iter = ClusterNameSet.begin(); iter != ClusterNameSet.end(); iter++) {
-     // rename cluster
-       NameCID.insert(pair<string, int>(*iter, TempCId));
-       TempCId++;
-    }
+  int TempCId = 1;
+  for (set<string>::iterator iter = ClusterNameSet.begin(); iter != ClusterNameSet.end(); iter++) {
+    // rename cluster
+    NameCID.insert(pair<string, int>(*iter, TempCId));
+    TempCId++;
   }
   
   ClusInNode.resize(NameNID.size());
-  ClusInClus.resize(NumClus);
-  int LineID = 1;
-  while(getline(finGT, szLine)) { 
+  ClusInClus.resize(ClusterNameSet.size());
+  finGT1.open(ClusFile);
+  while(getline(finGT1, szLine)) { 
     TStrV tData;
     istringstream iss(szLine);
     copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter<TStrV >(tData));
-    TStrV::iterator iter3 = tData.begin();
-    if (*iter3 == "#") { continue; } // Skip comment lines
-    if (TypeGtClusInClus==1) {
-      TStrV::iterator iter1 = tData.begin(); 
-      int CID = NameCID.at(*iter1); 
-      for (TStrV::iterator iter = ++iter1; iter != tData.end(); ++iter) { 
-       // determine whether the node exists in the topology file 
-        if (NameNID.find(*iter) == NameNID.end()) { continue; }
-        int NID = NameNID.at(*iter);
-        ClusInNode[NID-1].insert(CID);
-        ClusInClus[CID-1].insert(NID);
-      }
-    }
-    if (TypeGtClusInClus==2) { 
-      // [be cautious] not recommend. 
-      if (LineID <= NumCommentLine) { continue; }
-      int CID = LineID;
-      for (TStrV::iterator iter = tData.begin(); iter != tData.end(); ++iter) { 
-        // determine whether the node exists in the topology file 
-        if (NameNID.find(*iter) == NameNID.end()) { continue; }
-        int NID = NameNID.at(*iter);
-        ClusInNode[NID-1].insert(CID);
-        ClusInClus[CID-1].insert(NID);
-      }
-      LineID++;
+    if (tData.size() <= 1) { continue; } // skip abnormal lines.
+    TStrV::iterator iter1 = tData.begin();
+    if (*iter1 == "#") { continue; } // Skip comment lines
+    int CID = NameCID.at(*iter1); 
+    for (TStrV::iterator iter = ++iter1; iter != tData.end(); ++iter) { 
+      // determine whether the node exists in the topology file 
+      if (NameNID.find(*iter) == NameNID.end()) { continue; }
+      int NID = NameNID.at(*iter);
+      ClusInNode[NID-1].insert(CID);
+      ClusInClus[CID-1].insert(NID);
     }
   }
-  finGT.close();
-  finGT.clear();
+  finGT1.close();
+  finGT1.clear();
   
   if (Verbose) {
     cout << "=================Cluster ground truth Data Load Information===================" << endl;
-    cout << "Reminder-1: All clusters are renamed from 1." << endl;
-    if (FlagOverlap) { 
-      cout << "A overlapping structure is loaded." << endl;
-    } else {
-      cout << "A non-overlapping structure is loaded." << endl;
-    }
-    cout << "The nodes that do not exist in the topology file are abandoned." << endl;
+    cout << "[Reminder-1]: We assume a node is unreasonable if it has no cluster affiliations, and set their affiliation as empty. " << endl;
+    cout << "[Reminder-2]: Some nodes existed in the topology file perhaps do not have cluster affiliations." << endl;
+    cout << "[Reminder-3]: All clusters are renamed from 1." << endl;
   }
 }
 
@@ -705,9 +583,11 @@ public:
   string GetDataName() { return DataName; }
   // get NameNID
   TStrIntMap GetNameNID() { return NameNID; }
+ // get NameNID of a certain node
+  int GetNameNID(string NodeName) { return NameNID.at(NodeName); }
   
   // load a graph (directed) with topology information
-  void LoadGraphTpl(int TypeGraph);
+  void LoadGraphTpl(int TypeGraph, bool Verbose);
   // get graph topology
   TIntSet GetNeighbor(int NID) { return Neighbor[NID-1]; }
   TIntSetV GetNeighbor() { return Neighbor; }
@@ -734,19 +614,23 @@ public:
   TIntV GetBinNodeFea(int NID) { return BinNodeFea[NID-1]; }
   
   // load real cluster information
-  void LoadClusGt(int TypeGT);
+  void LoadClusGt(int TypeGT, bool Verbose);
+  // get FlagOverlap
+  bool GetFlagOverlap() { return FlagOverlap; }
   // get NameCID
   TStrIntMap GetNameCID() { return NameCID; }
-  // get gt clusters listed in cluster
-  TIntSetV GetClusInClus() { return ClusInClus; }
-  // get a set of nodes in a specific cluster 
-  TIntSet GetClusInClus(int CID) { return ClusInClus[CID-1]; }
+  // get NameCID of a certain cluster
+  int GetNameCID(string ClusName) { return NameCID.at(ClusName); }
+  // get number of clusters
+  int GetNumClus() { return NumClus; }
   // get gt clusters listed in node
   TIntSetV GetClusInNode() { return ClusInNode; }
   // get a set of cluster ids to which a specific node belongs
   TIntSet GetClusInNode(int NID) { return ClusInNode[NID-1]; }
-  // get number of clusters
-  int GetNumClus() { return NumClus; }
+  // get gt clusters listed in cluster
+  TIntSetV GetClusInClus() { return ClusInClus; }
+  // get a set of nodes in a specific cluster 
+  TIntSet GetClusInClus(int CID) { return ClusInClus[CID-1]; }
   // calculate the number of common communities of all node pairs
   int CalNumCmnCmty(int NId1, int NId2) { return CalNumJointSets(ClusInNode[NId1-1], ClusInNode[NId2-1]); }
   
@@ -762,23 +646,19 @@ public:
   }
 };
 
-void GRAPH::LoadGraphTpl(int TypeGraph) {
+void GRAPH::LoadGraphTpl(int TypeGraph, bool Verbose) {
   GRAPHIOCLASS GraphIOClass;
   if (TypeGraph==1) {
-  // load data is pure edge set
-    GraphIOClass.LoadPureEdgeSetGraph(DataName, ".edgelist", Neighbor, NameNID, true);
+  // load data is pure edge list
+    GraphIOClass.LoadPureEdgeListGraph(DataName, ".edgelist", Neighbor, NameNID, Verbose);
   }
   if (TypeGraph==2) {
-  // load data is pure adjacent list
-    int TypeAdjList = 2;
-    // TypeAdjList=1) first value of each line denotes target node, while the other values denotes its neighbors;
-    //            =2) all values of each line denote the neighbors of target node, target node is line number that is from 1;
-    //            =3) all values of each line denote the neighbors of target node, target node is line number that is from 0;
-    GraphIOClass.LoadPureAdjListGraph(DataName, ".adjlist", TypeAdjList, Neighbor, NameNID, true);
+  // load data is pure adjacency list
+    GraphIOClass.LoadPureAdjListGraph(DataName, ".adjlist", Neighbor, NameNID, Verbose);
   }
   NumNodes = Neighbor.size();
   NumEdges = 0;
-  for (int i = 0; i < Neighbor.size(); i++) { NumEdges += Neighbor[i].size(); }
+  for (int NID = 1; NID <= Neighbor.size(); NID++) { NumEdges += Neighbor[NID-1].size(); }
 }
 
 // load a graph node feature information
@@ -835,17 +715,24 @@ void GRAPH::LoadBinNodeFea() {
 }
 
 // load real cluster information
-void GRAPH::LoadClusGt(int TypeGT) {
+void GRAPH::LoadClusGt(int TypeGT, bool Verbose) {
   GRAPHIOCLASS GraphIOClass;
   if (TypeGT==1) {
-  // each line denotes a node's affiliation
-  // the third parameter (1 or 2) is determined by the real meaning of first element in each line. the first element denotes the node name if it is set as 1.
-    GraphIOClass.LoadGraphGtClusInNode(DataName, ".gt", 1, FlagOverlap, NameCID, NumClus, ClusInNode, ClusInClus, NameNID, true);
+  // each line denotes a node's affiliation, first value is node name, and the others is its affiliated clusters.
+    GraphIOClass.LoadGraphGtClusInNode(DataName, ".ngt", NameCID, ClusInNode, ClusInClus, NameNID, Verbose);
   }
   if (TypeGT==2) {
   // each line denotes a cluster
   // third parameter (1 or 2) is determined by the real meaning of first element in each line. . the first element denotes the cluster name if it is set as 1.
-    GraphIOClass.LoadGraphGtClusInClus(DataName, ".gt", 2, FlagOverlap, NameCID, NumClus, ClusInNode, ClusInClus, NameNID, true);
+    GraphIOClass.LoadGraphGtClusInClus(DataName, ".cgt", NameCID, ClusInNode, ClusInClus, NameNID, Verbose);
+  }
+  NumClus = ClusInClus.size();
+  FlagOverlap = false; // set as non-overlapping by default
+  for (int NID = 1; NID <= NameNID.size(); NID++) {
+    if (ClusInNode[NID-1].size() > 1) { 
+      FlagOverlap = true; 
+      break;
+    }
   }
 }
 
@@ -1822,14 +1709,33 @@ public:
 };
 
 void FUNCTIONTEST::PerformTest() {
+  bool Verbose = false;
   // load .graph file (pure directed graph)
   // the topology data is stored in the format of 1): edge list, or 2): adjacent list
-  G.LoadGraphTpl(2); 
-  printf("Number of Nodes: %d, Number of edges: %d\n", G.GetNumNodes(), G.GetNumEdges());
-  G.LoadClusGt(2);
-  printf("Number of clusters: %d\n", G.GetNumClus());
+  G.LoadGraphTpl(2, Verbose); 
+  printf("[Number of nodes]: %d, [Number of directed edges]: %d\n", G.GetNumNodes(), G.GetNumEdges());
+  // 1) each line denotes a node's affiliation, first value is node name, and the others is its affiliated clusters.
+  // 2) 
+  G.LoadClusGt(2, Verbose);
+  if (G.GetFlagOverlap()) { 
+    cout << "[Reminder]: An overlapping structure is loaded." << endl;
+  } else {
+    cout << "[Reminder]: A non-overlapping structure is loaded." << endl;
+  }
+  printf("[Number of clusters]: %d\n", G.GetNumClus());
   EVALGRAPH EvalGraph;
   EvalGraph.FuncTest(G);
+  
+  /*for (map<string, int>::iterator iter = NameCID.begin(); iter != NameCID.end(); iter++) {
+    cout << iter->first << "---"<< iter->second << endl;
+  }
+  for (int NID = 1; NID <= NameNID.size(); NID++) {
+    cout << "node-" << NID << " ";
+    for (TIntSetIter iter = ClusInNode[NID-1].begin(); iter != ClusInNode[NID-1].end(); iter++) {
+      cout << *iter << " ";
+    }
+    cout << endl;
+  }*/
 }
 
 int main(int argc, char **argv)

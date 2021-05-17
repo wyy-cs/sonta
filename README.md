@@ -29,7 +29,7 @@ NodeName3 ClusterName4 ClusterName5 ...... ClusterNameJ
 ......  
 ......  
 
-2) edge line denotes a certain cluster to which a set of nodes belong. (first name is target cluster, others are node name)
+2) edge line denotes a certain cluster to which a set of nodes belong. (first name is target cluster, others are node name)  
 ClusterName1 NodeName1 NodeName2 ...... NodeNameI  
 ClusterName2 NodeName3  
 ClusterName3 NodeName4 NodeName5 ...... NodeNameJ  

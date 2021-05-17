@@ -4,13 +4,13 @@
 SONTA supports two format of input topology files. All nodes will be renamed and the correspondence between nodes' new id and original name is stored in a map<string, int> structure.
 
 1) edge list.
-------------------------
+********
 NodeName1 NodeName2
 NodeName3 NodeName4
 ...
 ...
 ...
--------------------------
+*******
 
 2) adjacency list. (first name is target node)
 ------------------------
